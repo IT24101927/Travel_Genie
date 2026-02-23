@@ -1,0 +1,6 @@
+<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+ <rect width="600" height="400" fill="#f0f0f0"/>
+ <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#ccc" text-anchor="middle" dominant-baseline="middle">
+   Image Not Available
+ </text>
+</svg>
