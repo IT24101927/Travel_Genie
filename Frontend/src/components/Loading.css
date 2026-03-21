@@ -1,0 +1,197 @@
+/* 
+   Loading Component - Ceylon Breeze Theme Integration
+   Matches colors and styles from App.css and Auth.css 
+*/
+
+.loading-container {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    /* Using the exact gradient from Auth.css for consistency */
+    background: linear-gradient(135deg, #FAF9F5 0%, #EDF5E8 50%, #FAF9F5 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    transition: opacity 0.6s ease-out;
+}
+
+.loading-container.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Background Blobs (Matching Auth.css) ── */
+.travel-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px); /* Soft diffuse look */
+    opacity: 0.4;
+    animation: float 20s infinite ease-in-out;
+}
+
+.blob-1 {
+    /* Primary Green Tint */
+    background: radial-gradient(circle, var(--primary-light, #12A080), transparent 70%);
+    width: 500px;
+    height: 500px;
+    top: -150px;
+    left: -100px;
+    animation-delay: 0s;
+}
+
+.blob-2 {
+    /* Secondary Gold Tint */
+    background: radial-gradient(circle, var(--secondary, #E8A830), transparent 70%);
+    width: 400px;
+    height: 400px;
+    bottom: -100px;
+    right: -50px;
+    animation-delay: -5s;
+}
+
+.blob-3 {
+    /* Accent warmth */
+    background: radial-gradient(circle, rgba(212, 83, 43, 0.15), transparent 70%);
+    width: 300px;
+    height: 300px;
+    top: 40%;
+    left: 60%;
+    animation-delay: -10s;
+}
+
+@keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+}
+
+/* ── Central Content ── */
+.loading-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 400px;
+    padding: 2rem;
+    
+    /* Option: Add a subtle glass card like dashboard */
+    /* background: rgba(255, 255, 255, 0.4); */
+    /* backdrop-filter: blur(8px); */
+    /* border-radius: 24px; */
+}
+
+/* ── Brand Loader Ring ── */
+.brand-loader {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin-bottom: 30px;
+}
+
+.spinner-ring {
+    position: absolute;
+    inset: 0;
+    border: 3px solid rgba(14, 124, 95, 0.1); /* Primary with opacity */
+    border-top-color: var(--primary, #0E7C5F);
+    border-radius: 50%;
+    animation: spin 1.5s linear infinite;
+}
+
+.spinner-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.elephant-svg {
+    width: 50px;
+    height: 50px;
+}
+
+/* ── Typography ── */
+.app-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-dark, #0A5E48);
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.app-title span {
+    color: var(--secondary, #E8A830);
+}
+
+.loading-message {
+    font-size: 0.95rem;
+    color: var(--text-secondary, #3C4F43);
+    margin-top: 0.5rem;
+    margin-bottom: 2rem;
+    min-height: 1.5em;
+    font-weight: 500;
+}
+
+/* ── Progress Bar ── */
+.progress-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-bar {
+    width: 200px;
+    height: 4px;
+    background: rgba(14, 124, 95, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--secondary, #E8A830), var(--primary, #0E7C5F));
+    border-radius: 10px;
+    transition: width 0.2s ease-out;
+}
+
+.progress-info {
+    font-size: 0.8rem;
+    color: var(--text-muted, #6B7E70);
+    font-weight: 600;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+}
+
+/* Dark Mode Support (if parent has data-theme='dark') */
+[data-theme='dark'] .loading-container {
+    background: #0A1F18; /* Dark Green bg */
+}
+
+[data-theme='dark'] .app-title {
+    color: #F0F3F2;
+}
+
+[data-theme='dark'] .loading-message {
+    color: #A3B8B0;
+}
