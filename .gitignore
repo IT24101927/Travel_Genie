@@ -57,14 +57,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Uploads (user content - ignore files but keep folder structure)
-Backend/uploads/*
-!Backend/uploads/.gitkeep
-!Backend/uploads/places
-Backend/uploads/places/*
-!Backend/uploads/places/.gitkeep
-Backend/public/uploads/*
-!Backend/public/uploads/.gitkeep
+# Uploads (user content)
+Backend/uploads/
+Backend/public/uploads/
 
 # Runtime data
 pids

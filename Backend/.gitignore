@@ -92,14 +92,9 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# Uploads (ignore files but keep folder structure via .gitkeep)
-uploads/*
-!uploads/.gitkeep
-!uploads/places
-uploads/places/*
-!uploads/places/.gitkeep
-public/uploads/*
-!public/uploads/.gitkeep
+# Uploads
+uploads/
+public/uploads/
 
 # OS
 .DS_Store
