@@ -1,6 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
+
+class AdminErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
+          <h2>Admin Panel Error</h2>
+          <p style={{ color: '#666' }}>Something went wrong loading the admin panel.</p>
+          <pre style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '8px', textAlign: 'left', fontSize: '0.8rem', overflowX: 'auto' }}>
+            {this.state.error?.message}
+          </pre>
+          <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('currentUser'); window.location.href = '/login' }}
+            style={{ marginTop: '1rem', padding: '0.5rem 1.5rem', background: '#0E7C5F', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+            Return to Login
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Import components
 import Loading from './components/Loading'
@@ -52,7 +80,7 @@ function App() {
           <Route path="/signup" element={<Signup theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/dashboard" element={<Dashboard theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/profile" element={<Profile theme={theme} toggleTheme={toggleTheme} />} />
-          <Route path="/admin" element={<AdminDashboard theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/admin" element={<AdminErrorBoundary><AdminDashboard theme={theme} toggleTheme={toggleTheme} /></AdminErrorBoundary>} />
           <Route path="/forgot-password" element={<ForgotPassword theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/reset-password" element={<ResetPassword theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/plan-trip" element={<PlanTrip theme={theme} toggleTheme={toggleTheme} />} />

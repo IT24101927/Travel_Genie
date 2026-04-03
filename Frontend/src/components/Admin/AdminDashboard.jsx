@@ -60,7 +60,7 @@ function AdminDashboard({ theme, toggleTheme }) {
     Authorization: `Bearer ${localStorage.getItem('token')}`,
   }), [])
 
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}')
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}') } catch { return {} } })()
 
   const [dashboardStats, setDashboardStats] = useState([
     { title: 'Total Users', value: '…', icon: '👥', color: '#6366f1', bg: 'linear-gradient(135deg, #6366f1, #818cf8)' },
@@ -353,7 +353,7 @@ function AdminDashboard({ theme, toggleTheme }) {
                     {recentReviews.map(r => (
                       <div key={getReviewId(r)} className="ad-review-row">
                         <div className="ad-review-stars">
-                          {'★'.repeat(r.rating || 0)}{'☆'.repeat(5 - (r.rating || 0))}
+                          {'★'.repeat(Math.min(5, Math.max(0, Math.floor(r.rating || 0))))}{'☆'.repeat(Math.min(5, Math.max(0, 5 - Math.floor(r.rating || 0))))}
                         </div>
                         {r.title && <p className="ad-review-title"><strong>{r.title}</strong></p>}
                         <p className="ad-review-comment">{r.comment ? `${r.comment.slice(0, 80)}${r.comment.length > 80 ? '…' : ''}` : 'No review comment'}</p>
