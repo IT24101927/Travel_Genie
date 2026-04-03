@@ -83,16 +83,18 @@ app.get('/', (req, res) => {
 // Error Handler Middleware (should be last)
 app.use(errorHandler);
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-const ENV = process.env.NODE_ENV || 'development';
-app.listen(PORT, () => {
-  console.log('\n  ╔══════════════════════════════════════╗');
-  console.log('  ║       TravelGenie API Server         ║');
-  console.log('  ╠══════════════════════════════════════╣');
-  console.log(`  ║  Port        : ${String(PORT).padEnd(22)}║`);
-  console.log(`  ║  Environment : ${ENV.padEnd(22)}║`);
-  console.log('  ╚══════════════════════════════════════╝\n');
-});
+// Start Server (only when running locally, not on Vercel serverless)
+if (process.env.VERCEL !== '1') {
+  const PORT = process.env.PORT || 5000;
+  const ENV = process.env.NODE_ENV || 'development';
+  app.listen(PORT, () => {
+    console.log('\n  ╔══════════════════════════════════════╗');
+    console.log('  ║       TravelGenie API Server         ║');
+    console.log('  ╠══════════════════════════════════════╣');
+    console.log(`  ║  Port        : ${String(PORT).padEnd(22)}║`);
+    console.log(`  ║  Environment : ${ENV.padEnd(22)}║`);
+    console.log('  ╚══════════════════════════════════════╝\n');
+  });
+}
 
 module.exports = app;
