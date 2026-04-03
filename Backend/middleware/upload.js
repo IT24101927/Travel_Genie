@@ -3,7 +3,10 @@ const path = require('path');
 const fs = require('fs');
 
 // Ensure uploads directory exists
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'places');
+// On Vercel, /var/task is read-only; use /tmp instead
+const UPLOAD_DIR = process.env.VERCEL === '1'
+  ? path.join('/tmp', 'uploads', 'places')
+  : path.join(__dirname, '..', 'uploads', 'places');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
