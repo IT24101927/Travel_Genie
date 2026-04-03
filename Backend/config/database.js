@@ -129,7 +129,8 @@ const connectDB = async () => {
       // Non-fatal — table may have already been migrated
     }
 
-    // Set up model associations before syncing
+    // Associations are now loaded in server.js at module level (before connectDB is called).
+    // require('./associations') is kept here as a no-op safety call (Node caches it).
     require('./associations');
 
     const syncOptions = process.env.DB_FORCE_SYNC === 'true'

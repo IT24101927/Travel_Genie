@@ -9,6 +9,11 @@ require('pg');
 const { connectDB } = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
 
+// Set up Sequelize model associations synchronously at module load.
+// Must run before any route handlers so that all includes work on first request,
+// regardless of whether connectDB() has finished its async setup.
+require('./config/associations');
+
 // Import Routes
 const userRoutes = require('./modules/userManagement/routes/userRoutes');
 const preferenceRoutes = require('./modules/userManagement/routes/preferenceRoutes');
