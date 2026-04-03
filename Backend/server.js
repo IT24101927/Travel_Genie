@@ -3,6 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
+// Explicitly require pg so bundlers (Vercel/esbuild) include it (Sequelize loads it dynamically)
+require('pg');
 
 const { connectDB } = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
