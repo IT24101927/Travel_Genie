@@ -92,6 +92,12 @@ function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  // Hard fallback: dismiss loading screen after 4 s no matter what
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 4000)
+    return () => clearTimeout(t)
+  }, [])
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }

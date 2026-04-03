@@ -40,7 +40,7 @@ function Loading({ onLoaded }) {
       setLoadingText(LOADING_STEPS[Math.floor(Math.random() * LOADING_STEPS.length)])
     }, 2000)
 
-    // Hard fallback: force completion after 10 seconds in case setInterval is throttled
+    // Hard fallback: force completion after 3 seconds in case setInterval is throttled
     const hardTimeout = setTimeout(() => {
       setProgress(100)
       setFadeOut(true)
