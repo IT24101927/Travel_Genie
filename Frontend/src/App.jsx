@@ -1,6 +1,36 @@
-import { useState, useEffect, Component } from 'react'
+import { useState, useEffect, Component, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
+
+class RootErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, info) {
+    console.error('[RootErrorBoundary] caught:', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', background: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <h2 style={{ color: '#dc2626' }}>Something went wrong</h2>
+          <pre style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '8px', textAlign: 'left', fontSize: '0.8rem', overflowX: 'auto', maxWidth: '600px', whiteSpace: 'pre-wrap' }}>
+            {this.state.error?.message}
+          </pre>
+          <button onClick={() => { localStorage.clear(); window.location.href = '/' }}
+            style={{ marginTop: '1rem', padding: '0.5rem 1.5rem', background: '#0E7C5F', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+            Clear data &amp; restart
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 class AdminErrorBoundary extends Component {
   constructor(props) {
@@ -66,12 +96,12 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
 
-  const handleLoadingComplete = () => {
+  const handleLoadingComplete = useCallback(() => {
     setLoading(false)
-  }
+  }, [])
 
   return (
-    <>
+    <RootErrorBoundary>
       {loading && <Loading onLoaded={handleLoadingComplete} />}
       <Router>
         <Routes>
@@ -95,7 +125,7 @@ function App() {
           <Route path="/plan-trip-landing" element={<PlanTripLanding theme={theme} toggleTheme={toggleTheme} />} />
         </Routes>
       </Router>
-    </>
+    </RootErrorBoundary>
   )
 }
 
