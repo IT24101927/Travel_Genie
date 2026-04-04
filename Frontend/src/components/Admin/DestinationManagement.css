@@ -187,6 +187,10 @@
 .dm2-btn-edit:hover   { background: #6366f1; color: #fff; }
 .dm2-btn-delete { background: #fef2f2; color: #ef4444; }
 .dm2-btn-delete:hover { background: #ef4444; color: #fff; }
+[data-theme='dark'] .dm2-btn-edit   { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+[data-theme='dark'] .dm2-btn-edit:hover   { background: #6366f1; color: #fff; }
+[data-theme='dark'] .dm2-btn-delete { background: rgba(239,68,68,0.15);  color: #fca5a5; }
+[data-theme='dark'] .dm2-btn-delete:hover { background: #ef4444; color: #fff; }
 
 /* ── Modal ── */
 .dm2-modal {

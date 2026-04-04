@@ -648,6 +648,11 @@
 [data-theme="dark"] .lg-eye-btn:hover {
   color: #3BE8A0;
 }
+[data-theme="dark"] .lg-error-msg {
+  background: rgba(255, 107, 107, 0.12);
+  color: #fca5a5;
+  border-color: rgba(255, 107, 107, 0.3);
+}
 
 /* ════════════════════════
    RESPONSIVE
