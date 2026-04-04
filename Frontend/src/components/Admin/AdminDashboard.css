@@ -1028,9 +1028,16 @@
 
   .adm-sidebar.mobile-open {
     transform: translateX(0);
+    width: 260px; /* always full-width when open on mobile, even if collapsed on desktop */
   }
 
-  .adm-sidebar.collapsed {
+  /* mobile-open must win over collapsed */
+  .adm-sidebar.collapsed.mobile-open {
+    transform: translateX(0);
+    width: 260px;
+  }
+
+  .adm-sidebar.collapsed:not(.mobile-open) {
     transform: translateX(-100%);
   }
 

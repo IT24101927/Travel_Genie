@@ -165,7 +165,7 @@ function AdminDashboard({ theme, toggleTheme }) {
         <div className="adm-sidebar-top">
           <button className="adm-brand" onClick={handleLogout} title="Sign out & go home" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%' }}>
             <span className="adm-brand-icon">✈</span>
-            {!sidebarCollapsed && (
+            {(!sidebarCollapsed || mobileSidebarOpen) && (
               <span className="adm-brand-info">
                 <span className="adm-brand-text">Travel<strong>Genie</strong></span>
                 <span className="adm-brand-badge">Admin Panel</span>
@@ -186,14 +186,14 @@ function AdminDashboard({ theme, toggleTheme }) {
           </button>
         </div>
 
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || mobileSidebarOpen) && (
           <div className="adm-sidebar-search" style={{ display: 'none' }}>
             {/* Search removed as requested */}
           </div>
         )}
 
         <nav className="adm-nav">
-          <span className="adm-nav-group-label">{!sidebarCollapsed && 'MAIN MENU'}</span>
+          <span className="adm-nav-group-label">{(!sidebarCollapsed || mobileSidebarOpen) && 'MAIN MENU'}</span>
           {filteredMenu.map(item => (
             <button
               key={item.id}
@@ -202,8 +202,8 @@ function AdminDashboard({ theme, toggleTheme }) {
               title={item.label}
             >
               <span className="adm-nav-icon">{item.icon}</span>
-              {!sidebarCollapsed && <span className="adm-nav-label">{item.label}</span>}
-              {!sidebarCollapsed && activeSection === item.id && <span className="adm-nav-active-dot" />}
+              {(!sidebarCollapsed || mobileSidebarOpen) && <span className="adm-nav-label">{item.label}</span>}
+              {(!sidebarCollapsed || mobileSidebarOpen) && activeSection === item.id && <span className="adm-nav-active-dot" />}
             </button>
           ))}
         </nav>
@@ -211,9 +211,9 @@ function AdminDashboard({ theme, toggleTheme }) {
         <div className="adm-sidebar-bottom">
           <button className="adm-nav-item adm-logout-btn" onClick={handleLogout} title="Logout">
             <span className="adm-nav-icon">🚪</span>
-            {!sidebarCollapsed && <span className="adm-nav-label">Logout</span>}
+            {(!sidebarCollapsed || mobileSidebarOpen) && <span className="adm-nav-label">Logout</span>}
           </button>
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || mobileSidebarOpen) && (
             <div className="adm-sidebar-user">
               <div className="adm-sidebar-avatar-wrap">
                 <div className="adm-sidebar-avatar">
