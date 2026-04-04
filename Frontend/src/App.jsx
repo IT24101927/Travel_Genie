@@ -10,9 +10,7 @@ class RootErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return { hasError: true, error }
   }
-  componentDidCatch(error, info) {
-    console.error('[RootErrorBoundary] caught:', error, info)
-  }
+  componentDidCatch(error, info) {}
   render() {
     if (this.state.hasError) {
       return (
@@ -35,24 +33,16 @@ class RootErrorBoundary extends Component {
 class AdminErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false }
   }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error }
-  }
-  componentDidCatch(error, info) {
-    console.error('[AdminErrorBoundary] CRASH:', error.message)
-    console.error('[AdminErrorBoundary] Stack:', error.stack)
-    console.error('[AdminErrorBoundary] Component trace:', info.componentStack)
+  static getDerivedStateFromError() {
+    return { hasError: true }
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', background: '#dc2626', color: '#fff', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-          <h2>Admin Panel Error: {this.state.error?.message}</h2>
-          <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', textAlign: 'left', fontSize: '0.8rem', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-            {this.state.error?.stack}
-          </pre>
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', background: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <h2 style={{ color: '#dc2626' }}>Admin panel failed to load</h2>
           <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('currentUser'); window.location.href = '/login' }}
             style={{ marginTop: '1rem', padding: '0.5rem 1.5rem', background: '#0E7C5F', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
             Return to Login
