@@ -982,8 +982,9 @@
     width: 100%;
   }
   .sg-form-container {
-    padding: 40px 28px;
+    padding: 80px 28px 40px;
     max-width: 480px;
+    margin-left: 0;
   }
   .sg-style-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -991,7 +992,7 @@
 }
 @media (max-width: 520px) {
   .sg-form-container {
-    padding: 32px 20px;
+    padding: 80px 18px 32px;
   }
   .sg-row {
     grid-template-columns: 1fr;
@@ -1000,6 +1001,9 @@
     grid-template-columns: 1fr;
   }
   .sg-style-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sg-form-header h2 {
+    font-size: 24px;
   }
 }

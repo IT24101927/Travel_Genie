@@ -278,4 +278,9 @@
   .section-description {
     font-size: 14px;
   }
+
+  /* Prevent popup from overflowing narrow phone screens */
+  .leaflet-popup-content {
+    width: min(calc(100vw - 48px), 280px) !important;
+  }
 }

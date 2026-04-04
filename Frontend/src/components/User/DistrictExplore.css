@@ -944,6 +944,13 @@
   }
 }
 
+@media (max-width: 480px) {
+  /* Compress breadcrumb connector lines so 6 steps fit on narrow screens */
+  .de-dot-line {
+    min-width: 12px;
+  }
+}
+
 @media (max-width: 640px) {
   /* On mobile: open card stacks vertically (reviews below) */
   .de-place-card--open {
