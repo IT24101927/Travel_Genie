@@ -82,7 +82,7 @@ import Hotels from './components/User/Hotels'
 import PlanTripLanding from './components/User/PlanTripLanding'
 
 function App() {
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light'
   })
@@ -91,12 +91,6 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
   }, [theme])
-
-  // Hard fallback: dismiss loading screen after 4 s no matter what
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 4000)
-    return () => clearTimeout(t)
-  }, [])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')

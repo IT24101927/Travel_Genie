@@ -27,6 +27,7 @@ const toAbsoluteAssetUrl = (value) => {
 const getReviewId = (review) => review?.review_id || review?.id
 
 function AdminDashboard({ theme, toggleTheme }) {
+  console.log('[AdminDashboard] rendering')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const VALID_SECTIONS = ['overview','users','districts','destinations','hotels','tours','expenses','reviews']
@@ -44,6 +45,7 @@ function AdminDashboard({ theme, toggleTheme }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     const user = JSON.parse(localStorage.getItem('currentUser') || '{}')
+    console.log('[AdminDashboard] auth guard - token:', !!token, 'role:', user.role)
     if (!token) { navigate('/login', { replace: true }); return }
     if (user.role !== 'admin') { navigate('/dashboard', { replace: true }) }
   }, [navigate])
