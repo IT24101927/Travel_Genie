@@ -86,7 +86,7 @@ import Hotels from './components/User/Hotels'
 import PlanTripLanding from './components/User/PlanTripLanding'
 
 function App() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light'
   })
