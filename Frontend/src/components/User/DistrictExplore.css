@@ -912,6 +912,26 @@
 /* ══════════════════════════════════════════════════════════════════
    Responsive
    ══════════════════════════════════════════════════════════════════ */
+
+/* Nav logout item hidden on desktop, shown in mobile dropdown */
+.nav-logout-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-logout-mobile {
+    display: flex;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+  }
+  .nav-logout-mobile .btn-logout {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+  }
+  [data-theme="dark"] .nav-logout-mobile { border-top-color: rgba(255,255,255,0.08); }
+}
+
 @media (max-width: 1024px) {
   .de-filters-panel {
     width: 100%;

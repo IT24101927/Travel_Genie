@@ -1224,6 +1224,11 @@
   .db-right { order: -1; }
   .db-trip-map { height: 300px; }
 }
+/* Logout item inside mobile dropdown — hidden on desktop */
+.nav-logout-mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .db-stat-card--count .db-stat-val { font-size: 24px; }
   .db-stat-card--money .db-stat-val { font-size: 20px; }
@@ -1241,6 +1246,18 @@
   [data-theme="dark"] .nav-menu { background: rgba(13,31,22,0.97); border-bottom-color: rgba(255,255,255,0.06); }
   .nav-menu.active { display: flex; }
   .btn-logout { display: none; }
+  /* Show logout inside dropdown on mobile */
+  .nav-logout-mobile {
+    display: flex;
+    padding-top: 8px;
+    border-top: 1px solid #E8EDE9;
+  }
+  .nav-logout-mobile .btn-logout {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+  }
+  [data-theme="dark"] .nav-logout-mobile { border-top-color: rgba(255,255,255,0.06); }
   .db-hero-inner { flex-direction: column; text-align: center; }
   .db-hero-cta { width: 100%; justify-content: center; }
   .db-hero-meta, .db-interests { justify-content: center; }

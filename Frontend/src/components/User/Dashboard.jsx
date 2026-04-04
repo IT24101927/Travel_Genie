@@ -1204,8 +1204,11 @@ export default function Dashboard({ theme, toggleTheme }) {
           </button>
 
           <ul className={`nav-menu ${menuOpen ? 'active' : ''}`}>
-            <li><Link to="/plan-trip">Plan a Trip</Link></li>
-            <li><Link to="/profile">Profile</Link></li>
+            <li><Link to="/plan-trip" onClick={() => setMenuOpen(false)}>Plan a Trip</Link></li>
+            <li><Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link></li>
+            <li className="nav-logout-mobile">
+              <button className="btn-logout" onClick={() => { handleLogout(); setMenuOpen(false) }}>Log Out</button>
+            </li>
           </ul>
 
           <div className="nav-actions">
