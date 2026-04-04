@@ -27,7 +27,6 @@ const toAbsoluteAssetUrl = (value) => {
 const getReviewId = (review) => review?.review_id || review?.id
 
 function AdminDashboard({ theme, toggleTheme }) {
-  console.log('[AdminDashboard] rendering')
   const navigate = useNavigate()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activeSection, setActiveSection] = useState('overview')
@@ -40,7 +39,6 @@ function AdminDashboard({ theme, toggleTheme }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     const user = JSON.parse(localStorage.getItem('currentUser') || '{}')
-    console.log('[AdminDashboard] auth guard - token:', !!token, 'role:', user.role)
     if (!token) { navigate('/login', { replace: true }); return }
     if (user.role !== 'admin') { navigate('/dashboard', { replace: true }) }
   }, [navigate])
@@ -97,7 +95,7 @@ function AdminDashboard({ theme, toggleTheme }) {
       try {
         const res = await fetch(`${API}/users?limit=5`, { headers: authH() })
         const data = await res.json()
-        if (data.data) setRecentUsers(data.data.slice(0, 5))
+        if (Array.isArray(data.data)) setRecentUsers(data.data.slice(0, 5))
       } catch { /* ignore */ }
     }
     fetchRecentUsers()
@@ -109,7 +107,7 @@ function AdminDashboard({ theme, toggleTheme }) {
       try {
         const res = await fetch(`${API}/reviews/admin/all?limit=5`, { headers: authH() })
         const data = await res.json()
-        if (data.data) setRecentReviews(data.data.slice(0, 5))
+        if (Array.isArray(data.data)) setRecentReviews(data.data.slice(0, 5))
       } catch { /* ignore */ }
     }
     fetchRecentReviews()

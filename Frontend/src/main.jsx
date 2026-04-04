@@ -29,3 +29,11 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+// Catch errors that escape React boundaries (e.g. browser extension conflicts)
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[TravelGenie] Unhandled promise rejection:', e.reason)
+})
+window.addEventListener('error', (e) => {
+  console.error('[TravelGenie] Uncaught error:', e.message, e.filename, e.lineno)
+})
