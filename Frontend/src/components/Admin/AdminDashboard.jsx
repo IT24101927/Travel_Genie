@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { clearUserData } from '../../utils/clearUserData'
 import { API_BASE } from '../../config/api'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import './AdminDashboard.css'
 import DestinationManagement from './DestinationManagement'
 import DistrictManagement from './DistrictManagement'
@@ -29,13 +29,8 @@ const getReviewId = (review) => review?.review_id || review?.id
 function AdminDashboard({ theme, toggleTheme }) {
   console.log('[AdminDashboard] rendering')
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const VALID_SECTIONS = ['overview','users','districts','destinations','hotels','tours','expenses','reviews']
-  const sectionParam = searchParams.get('section')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [activeSection, setActiveSection] = useState(
-    VALID_SECTIONS.includes(sectionParam) ? sectionParam : 'overview'
-  )
+  const [activeSection, setActiveSection] = useState('overview')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [recentUsers, setRecentUsers] = useState([])
@@ -199,7 +194,7 @@ function AdminDashboard({ theme, toggleTheme }) {
             <button
               key={item.id}
               className={`ad-nav-item ${activeSection === item.id ? 'active' : ''}`}
-              onClick={() => { setActiveSection(item.id); setSearchQuery(''); setSearchParams({ section: item.id }) }}
+              onClick={() => { setActiveSection(item.id); setSearchQuery('') }}
               title={item.label}
             >
               <span className="ad-nav-icon">{item.icon}</span>
@@ -304,7 +299,7 @@ function AdminDashboard({ theme, toggleTheme }) {
                     <button
                       key={a.id}
                       className="ad-quick-card"
-                      onClick={() => { setActiveSection(a.id); setSearchParams({ section: a.id }) }}
+                      onClick={() => { setActiveSection(a.id) }}
                     >
                       <span className="ad-quick-icon" style={{ background: `${a.accent}18`, color: a.accent }}>{a.icon}</span>
                       <span className="ad-quick-label">{a.label}</span>
@@ -320,7 +315,7 @@ function AdminDashboard({ theme, toggleTheme }) {
                 <section className="ad-section ad-card">
                   <div className="ad-section-header">
                     <h3>👥 Recent Users</h3>
-                    <button className="ad-link-btn" onClick={() => { setActiveSection('users'); setSearchParams({ section: 'users' }) }}>View all →</button>
+                    <button className="ad-link-btn" onClick={() => { setActiveSection('users') }}>View all →</button>
                   </div>
                   <div className="ad-user-list">
                     {recentUsers.length === 0 && <p className="ad-empty">No users found</p>}
@@ -348,7 +343,7 @@ function AdminDashboard({ theme, toggleTheme }) {
                 <section className="ad-section ad-card">
                   <div className="ad-section-header">
                     <h3>⭐ Recent Reviews</h3>
-                    <button className="ad-link-btn" onClick={() => { setActiveSection('reviews'); setSearchParams({ section: 'reviews' }) }}>View all →</button>
+                    <button className="ad-link-btn" onClick={() => { setActiveSection('reviews') }}>View all →</button>
                   </div>
                   <div className="ad-review-list">
                     {recentReviews.length === 0 && <p className="ad-empty">No reviews yet</p>}
