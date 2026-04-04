@@ -421,6 +421,9 @@ function Profile({ theme, toggleTheme }) {
           <ul className={`nav-menu ${menuOpen ? 'active' : ''}`}>
             <li><Link to="/dashboard">Dashboard</Link></li>
             <li><a href="#profile">Profile</a></li>
+            <li className="nav-logout-mobile">
+              <button className="btn-logout" onClick={() => { handleLogout(); setMenuOpen(false) }}>Log Out</button>
+            </li>
           </ul>
 
           <div className="nav-actions">

@@ -160,6 +160,16 @@ export default function Hotels({ theme, toggleTheme }) {
             <li><Link to="/tours">Tours</Link></li>
             <li><Link to="/hotels" className="nav-active">Hotels</Link></li>
             <li><Link to="/plan-trip-landing">Plan a Trip</Link></li>
+            <li className="nav-auth-mobile">
+              {isLoggedIn ? (
+                <Link to={dashPath} className="btn-nav-login" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+              ) : (
+                <>
+                  <Link to="/login" className="btn-nav-login" onClick={() => setMenuOpen(false)}>Log In</Link>
+                  <Link to="/signup" className="btn-nav-cta" onClick={() => setMenuOpen(false)}>Sign Up</Link>
+                </>
+              )}
+            </li>
           </ul>
 
           {toggleTheme && (

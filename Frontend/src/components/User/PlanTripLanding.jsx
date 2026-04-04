@@ -91,6 +91,16 @@ export default function PlanTripLanding({ theme, toggleTheme }) {
             <li><Link to="/tours">Tours</Link></li>
             <li><Link to="/hotels">Hotels</Link></li>
             <li><Link to="/plan-trip-landing" className="nav-active">Plan a Trip</Link></li>
+            <li className="nav-auth-mobile">
+              {isLoggedIn ? (
+                <Link to={dashPath} className="btn-nav-login" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+              ) : (
+                <>
+                  <Link to="/login" className="btn-nav-login" onClick={() => setMenuOpen(false)}>Log In</Link>
+                  <Link to="/signup" className="btn-nav-cta" onClick={() => setMenuOpen(false)}>Sign Up</Link>
+                </>
+              )}
+            </li>
           </ul>
 
           {toggleTheme && (

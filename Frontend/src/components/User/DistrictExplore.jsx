@@ -497,6 +497,9 @@ function DistrictExplore({ theme, toggleTheme }) {
             <li><Link to="/dashboard">Dashboard</Link></li>
             <li><Link to="/plan-trip" className="active-link">Plan a Trip</Link></li>
             <li><Link to="/profile">Profile</Link></li>
+            <li className="nav-logout-mobile">
+              <button className="btn-logout" onClick={() => { handleLogout(); setMenuOpen(false) }}>Log Out</button>
+            </li>
           </ul>
           <div className="nav-actions">
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">

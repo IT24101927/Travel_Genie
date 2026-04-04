@@ -194,6 +194,19 @@ function Home({ theme, toggleTheme }) {
             <li><a href="#map">Map</a></li>
             <li><a href="#reviews">Reviews</a></li>
             <li><Link to="/plan-trip-landing">Plan a Trip</Link></li>
+            <li className="nav-auth-mobile">
+              {isLoggedIn ? (
+                <>
+                  <Link to={dashPath} className="btn-nav-login" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+                  <button className="btn-nav-cta" onClick={() => { handleSignOut(); setMenuOpen(false) }}>Sign Out</button>
+                </>
+              ) : (
+                <>
+                  <Link to="/login" className="btn-nav-login" onClick={() => setMenuOpen(false)}>Log In</Link>
+                  <Link to="/signup" className="btn-nav-cta" onClick={() => setMenuOpen(false)}>Sign Up</Link>
+                </>
+              )}
+            </li>
           </ul>
 
           <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
