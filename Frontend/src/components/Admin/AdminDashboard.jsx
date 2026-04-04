@@ -174,11 +174,12 @@ function AdminDashboard({ theme, toggleTheme }) {
           </button>
           <button
             className="adm-collapse-btn"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            // title removed to strictly control visibility via CSS/UI
+            onClick={() => mobileSidebarOpen ? setMobileSidebarOpen(false) : setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={mobileSidebarOpen ? 'Close sidebar' : (sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {sidebarCollapsed
+              {/* On mobile: always show ← to close. On desktop: show direction based on collapsed state */}
+              {(!mobileSidebarOpen && sidebarCollapsed)
                 ? <><line x1="3" y1="12" x2="21" y2="12"/><polyline points="15 6 21 12 15 18"/></>
                 : <><line x1="21" y1="12" x2="3" y2="12"/><polyline points="9 18 3 12 9 6"/></>
               }
