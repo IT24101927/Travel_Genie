@@ -765,7 +765,26 @@
   }
 }
 
+/* Nav logout item hidden on desktop only, shown in mobile dropdown */
+@media (min-width: 769px) {
+  .nav-logout-mobile {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
+  .nav-logout-mobile {
+    display: flex;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+  }
+  .nav-logout-mobile .btn-logout {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+  }
+  [data-theme="dark"] .nav-logout-mobile { border-top-color: rgba(255,255,255,0.08); }
+
   .profile-container {
     padding: 24px 16px;
     gap: 24px;

@@ -1394,9 +1394,11 @@ section {
   .footer-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* Auth links inside mobile dropdown — hidden on desktop */
-.nav-auth-mobile {
-  display: none;
+/* Auth links inside mobile dropdown — hidden on desktop, visible on mobile */
+@media (min-width: 769px) {
+  .nav-auth-mobile {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1428,7 +1430,7 @@ section {
 
   .nav-menu.active { display: flex; }
 
-  /* Show auth buttons inside the dropdown on mobile */
+  /* Auth buttons inside dropdown on mobile */
   .nav-auth-mobile {
     display: flex;
     gap: 10px;

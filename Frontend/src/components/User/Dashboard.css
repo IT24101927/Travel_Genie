@@ -1224,9 +1224,11 @@
   .db-right { order: -1; }
   .db-trip-map { height: 300px; }
 }
-/* Logout item inside mobile dropdown — hidden on desktop */
-.nav-logout-mobile {
-  display: none;
+/* Logout item inside mobile dropdown — hidden on desktop only */
+@media (min-width: 769px) {
+  .nav-logout-mobile {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {

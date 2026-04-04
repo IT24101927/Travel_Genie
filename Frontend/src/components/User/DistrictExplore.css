@@ -913,9 +913,11 @@
    Responsive
    ══════════════════════════════════════════════════════════════════ */
 
-/* Nav logout item hidden on desktop, shown in mobile dropdown */
-.nav-logout-mobile {
-  display: none;
+/* Nav logout item hidden on desktop only, shown in mobile dropdown */
+@media (min-width: 769px) {
+  .nav-logout-mobile {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
