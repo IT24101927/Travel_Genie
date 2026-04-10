@@ -128,7 +128,11 @@ function Signup({ theme, toggleTheme }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
+
+  const setFieldError = (field, msg) => setFieldErrors(prev => ({ ...prev, [field]: msg }))
+  const clearFieldError = (field) => setFieldErrors(prev => ({ ...prev, [field]: '' }))
 
   // OTP verification (step 2)
   const [digits, setDigits]     = useState(['', '', '', '', '', ''])
@@ -162,46 +166,91 @@ function Signup({ theme, toggleTheme }) {
     }))
   }
 
+  /* ── Per-field blur validation ── */
+  const handleBlur = (fieldName) => {
+    switch (fieldName) {
+      case 'fullName': {
+        if (formData.fullName) {
+          const r = validateName(formData.fullName)
+          setFieldError('fullName', r.valid ? '' : r.message)
+        }
+        break
+      }
+      case 'email': {
+        if (formData.email) {
+          const r = validateEmail(formData.email)
+          setFieldError('email', r.valid ? '' : r.message)
+        }
+        break
+      }
+      case 'phone': {
+        if (formData.phone) {
+          setFieldError('phone', isValidPhone(formData.phone) ? '' : 'Phone number must be exactly 10 digits and start with 0.')
+        }
+        break
+      }
+      case 'nic': {
+        if (formData.nic) {
+          setFieldError('nic', isValidSriLankanNic(formData.nic) ? '' : 'NIC must be either 12 digits or 9 digits followed by V/v (X/x also accepted).')
+        }
+        break
+      }
+      case 'password': {
+        if (formData.password) {
+          const r = validatePassword(formData.password)
+          setFieldError('password', r.valid ? '' : r.message)
+        }
+        break
+      }
+      case 'confirmPassword': {
+        if (formData.confirmPassword) {
+          setFieldError('confirmPassword', formData.password !== formData.confirmPassword ? "Passwords don't match!" : '')
+        }
+        break
+      }
+      default: break
+    }
+  }
+
   /* ── Step 1 → send verification code ── */
   const goNext = async () => {
     if (!formData.fullName || !formData.email || !formData.password) {
       setError('Please fill in name, email and password before continuing.')
       return
     }
+
+    const newFieldErrors = {}
+
     const nameCheck = validateName(formData.fullName)
-    if (!nameCheck.valid) {
-      setError(nameCheck.message)
-      return
-    }
+    if (!nameCheck.valid) newFieldErrors.fullName = nameCheck.message
+
     const emailCheck = validateEmail(formData.email)
-    if (!emailCheck.valid) {
-      setError(emailCheck.message)
-      return
-    }
+    if (!emailCheck.valid) newFieldErrors.email = emailCheck.message
+
     const pwCheck = validatePassword(formData.password)
-    if (!pwCheck.valid) {
-      setError(pwCheck.message)
-      return
-    }
+    if (!pwCheck.valid) newFieldErrors.password = pwCheck.message
+
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords don't match!")
-      return
+      newFieldErrors.confirmPassword = "Passwords don't match!"
     }
     if (formData.dateOfBirth) {
       const dobCheck = validateDateOfBirth(formData.dateOfBirth)
-      if (!dobCheck.valid) {
-        setError(dobCheck.message)
-        return
-      }
+      if (!dobCheck.valid) newFieldErrors.dateOfBirth = dobCheck.message
     }
     if (formData.nic && !isValidSriLankanNic(formData.nic)) {
-      setError('NIC must be either 12 digits or 9 digits followed by V/v (X/x also accepted).')
-      return
+      newFieldErrors.nic = 'NIC must be either 12 digits or 9 digits followed by V/v (X/x also accepted).'
     }
     if (!isValidPhone(formData.phone)) {
-      setError('Phone number must be exactly 10 digits and start with 0.')
+      newFieldErrors.phone = 'Phone number must be exactly 10 digits and start with 0.'
+    }
+
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors)
+      setError('')
       return
     }
+
+    setFieldErrors({})
     setError('')
     setLoading(true)
     try {
@@ -492,8 +541,10 @@ function Signup({ theme, toggleTheme }) {
                 <div className="sg-input-wrap">
                   <span className="sg-input-icon"><IconUser /></span>
                   <input type="text" id="fullName" name="fullName" placeholder="Jane Smith"
-                    value={formData.fullName} onChange={handleChange} required autoFocus />
+                    value={formData.fullName} onChange={handleChange}
+                    onBlur={() => handleBlur('fullName')} required autoFocus />
                 </div>
+                {fieldErrors.fullName && <p className="sg-field-error">⚠ {fieldErrors.fullName}</p>}
               </div>
 
               <div className="sg-field">
@@ -501,8 +552,10 @@ function Signup({ theme, toggleTheme }) {
                 <div className="sg-input-wrap">
                   <span className="sg-input-icon"><IconMail /></span>
                   <input type="email" id="email" name="email" placeholder="jane@example.com"
-                    value={formData.email} onChange={handleChange} required />
+                    value={formData.email} onChange={handleChange}
+                    onBlur={() => handleBlur('email')} required />
                 </div>
+                {fieldErrors.email && <p className="sg-field-error">⚠ {fieldErrors.email}</p>}
               </div>
 
               <div className="sg-row">
@@ -515,10 +568,12 @@ function Signup({ theme, toggleTheme }) {
                     <input type="tel" id="phone" name="phone"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: normalizePhone(e.target.value) })}
+                      onBlur={() => handleBlur('phone')}
                       inputMode="numeric"
                       maxLength={10}
                       placeholder="07XXXXXXXX" />
                   </div>
+                  {fieldErrors.phone && <p className="sg-field-error">⚠ {fieldErrors.phone}</p>}
                 </div>
 
                 <div className="sg-field">
@@ -528,8 +583,18 @@ function Signup({ theme, toggleTheme }) {
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     </span>
                     <input type="date" id="dateOfBirth" name="dateOfBirth"
-                      value={formData.dateOfBirth} onChange={handleChange} />
+                      value={formData.dateOfBirth}
+                      onChange={(e) => {
+                        handleChange(e)
+                        if (e.target.value) {
+                          const r = validateDateOfBirth(e.target.value)
+                          setFieldError('dateOfBirth', r.valid ? '' : r.message)
+                        } else {
+                          clearFieldError('dateOfBirth')
+                        }
+                      }} />
                   </div>
+                  {fieldErrors.dateOfBirth && <p className="sg-field-error">⚠ {fieldErrors.dateOfBirth}</p>}
                 </div>
               </div>
 
@@ -540,8 +605,10 @@ function Signup({ theme, toggleTheme }) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
                   </span>
                   <input type="text" id="nic" name="nic" placeholder="e.g. 200012345678 or 991234567V"
-                    value={formData.nic} onChange={handleChange} />
+                    value={formData.nic} onChange={handleChange}
+                    onBlur={() => handleBlur('nic')} />
                 </div>
+                {fieldErrors.nic && <p className="sg-field-error">⚠ {fieldErrors.nic}</p>}
               </div>
 
               <div className="sg-field">
@@ -568,12 +635,14 @@ function Signup({ theme, toggleTheme }) {
                   <div className="sg-input-wrap">
                     <span className="sg-input-icon"><IconLock /></span>
                     <input type={showPassword ? 'text' : 'password'} id="password" name="password"
-                      placeholder="Create password" value={formData.password} onChange={handleChange} minLength={6} required />
+                      placeholder="Create password" value={formData.password} onChange={handleChange}
+                      onBlur={() => handleBlur('password')} minLength={6} required />
                     <button type="button" className="sg-eye-btn"
                       onClick={() => setShowPassword(p => !p)} aria-label="Toggle password">
                       {showPassword ? <IconEyeOff /> : <IconEye />}
                     </button>
                   </div>
+                  {fieldErrors.password && <p className="sg-field-error">⚠ {fieldErrors.password}</p>}
                   {formData.password && (
                     <div className="sg-strength">
                       {[1, 2, 3, 4].map(n => (
@@ -590,12 +659,14 @@ function Signup({ theme, toggleTheme }) {
                     <span className="sg-input-icon"><IconLock /></span>
                     <input type={showConfirmPassword ? 'text' : 'password'} id="confirmPassword"
                       name="confirmPassword" placeholder="Repeat password"
-                      value={formData.confirmPassword} onChange={handleChange} minLength={6} required />
+                      value={formData.confirmPassword} onChange={handleChange}
+                      onBlur={() => handleBlur('confirmPassword')} minLength={6} required />
                     <button type="button" className="sg-eye-btn"
                       onClick={() => setShowConfirmPassword(p => !p)} aria-label="Toggle password">
                       {showConfirmPassword ? <IconEyeOff /> : <IconEye />}
                     </button>
                   </div>
+                  {fieldErrors.confirmPassword && <p className="sg-field-error">⚠ {fieldErrors.confirmPassword}</p>}
                 </div>
               </div>
 

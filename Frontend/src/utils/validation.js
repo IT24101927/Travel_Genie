@@ -119,20 +119,14 @@ export function validatePassword(value) {
   if (!value) {
     return { valid: false, message: 'Password is required.' }
   }
-  if (value.length < 8) {
-    return { valid: false, message: 'Password must be at least 8 characters.' }
-  }
-  if (!/[A-Z]/.test(value)) {
-    return { valid: false, message: 'Password must contain at least one uppercase letter.' }
-  }
-  if (!/[a-z]/.test(value)) {
-    return { valid: false, message: 'Password must contain at least one lowercase letter.' }
-  }
-  if (!/\d/.test(value)) {
-    return { valid: false, message: 'Password must contain at least one number.' }
-  }
-  if (!/[!@#$%^&*()\-_=+\[\]{};:'",.<>?/\\|`~]/.test(value)) {
-    return { valid: false, message: 'Password must contain at least one special character (e.g. !@#$%).' }
+  const missing = []
+  if (value.length < 8) missing.push('8+ characters')
+  if (!/[A-Z]/.test(value)) missing.push('uppercase letter')
+  if (!/[a-z]/.test(value)) missing.push('lowercase letter')
+  if (!/\d/.test(value)) missing.push('number')
+  if (!/[!@#$%^&*()\-_=+\[\]{};:'",.<>?/\\|`~]/.test(value)) missing.push('special character')
+  if (missing.length > 0) {
+    return { valid: false, message: `Password needs: ${missing.join(', ')}.` }
   }
   return { valid: true, message: '' }
 }
@@ -197,8 +191,8 @@ export function validateDateOfBirth(value) {
     today.getMonth() > dob.getMonth() ||
     (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate())
   const age = hadBirthday ? yearDiff : yearDiff - 1
-  if (age < 13) {
-    return { valid: false, message: 'You must be at least 13 years old.' }
+  if (age < 18) {
+    return { valid: false, message: 'You must be at least 18 years old.' }
   }
   if (age > 120) {
     return { valid: false, message: 'Please enter a valid date of birth.' }
