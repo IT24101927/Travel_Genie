@@ -50,13 +50,11 @@ exports.getUserPreferences = async (req, res, next) => {
         smsNotifications: false,
         promotionalEmails: true,
         newsletterSubscription: true,
-        ...(addressData.prefs || {}),
         ...(pref.notification_prefs || {}),
       },
       regional: {
         language: 'en',
-        currency: 'LKR',
-        ...(addressData.prefs || {}),
+        currency: addressData.prefs?.currency || 'LKR',
         ...(pref.regional_prefs || {}),
       },
       privacy: {
@@ -131,11 +129,9 @@ exports.updateUserPreferences = async (req, res, next) => {
     if (travelStyle !== undefined) addr.travelStyle = travelStyle;
     if (Array.isArray(interests)) addr.interests = interests;
     if (notifications || regional || preferred_weather !== undefined) {
-      addr.prefs = {
-        ...(addr.prefs || {}),
-        ...(notifications || {}),
-        ...(regional || {}),
-      };
+      addr.prefs = { ...(addr.prefs || {}) };
+      // Only store currency and preferred_weather in address.prefs — not notification settings
+      if (regional?.currency) addr.prefs.currency = regional.currency;
       if (preferred_weather !== undefined) addr.prefs.preferred_weather = preferred_weather;
     }
     if (privacy) addr.privacy = { ...(addr.privacy || {}), ...privacy };

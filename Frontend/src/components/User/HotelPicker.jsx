@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { clearUserData } from '../../utils/clearUserData'
 import { API_BASE } from '../../config/api'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ReviewSection from './ReviewSection'
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -115,20 +115,25 @@ function fmtDate(dateStr) {
 }
 
 function mapHotelTypeToPreference(type, starRating = 0) {
-  const normalized = String(type || '').toLowerCase()
+  const normalized = String(type || '').toLowerCase().trim()
 
-  if (normalized === 'boutique') return 'boutique'
-  if (normalized === 'villa') return 'villa'
+  if (normalized.includes('boutique')) return 'boutique'
+  if (normalized.includes('villa')) return 'villa'
 
-  if (normalized === 'guesthouse' || normalized === 'hostel' || normalized === 'motel') {
+  if (
+    normalized.includes('guesthouse') ||
+    normalized.includes('guest house') ||
+    normalized.includes('hostel') ||
+    normalized.includes('motel')
+  ) {
     return 'budget'
   }
 
-  if (normalized === 'resort') return 'luxury'
+  if (normalized.includes('resort')) return 'luxury'
 
-  if (normalized === 'apartment') return 'midrange'
+  if (normalized.includes('apartment')) return 'midrange'
 
-  if (normalized === 'hotel') {
+  if (normalized.includes('hotel')) {
     if (Number(starRating) >= 5) return 'luxury'
     if (Number(starRating) <= 2) return 'budget'
     return 'midrange'
@@ -141,17 +146,18 @@ function mapHotelTypeToPreference(type, starRating = 0) {
 const mapHotel = (h) => {
   const rawCategory = h.hotel_type || h.category || 'hotel'
   const starRating = h.star_class || h.starRating || 0
+  const amenityList = parseAmenityList(h.amenities || h.amenities_list || h.amenity_names)
 
   return {
     _id:         String(h.hotel_id || h.place_id),
-    name:        h.place?.name         || h.name        || '',
+    name:        h.place?.name || h.hotel_name || h.name || '',
     category:    rawCategory,
     preferenceType: mapHotelTypeToPreference(rawCategory, starRating),
     starRating,
     priceRange:  { min: parseFloat(h.price_per_night) || 0, max: null, currency: 'LKR' },
-    address:     { city: h.place?.district?.name || h.place?.address_text || '', country: 'Sri Lanka' },
-    description: h.place?.description  || h.description || '',
-    amenities:   Array.isArray(h.amenities) ? h.amenities.map(normalizeAmenity) : [],
+    address:     { city: h.place?.district?.name || h.district_name || h.place?.address_text || '', country: 'Sri Lanka' },
+    description: h.place?.description || h.place_description || h.description || '',
+    amenities:   amenityList,
     images:      [
       ...(h.image_url ? [{ url: h.image_url }] : []),
       ...(h.place?.images || []).map(img => ({ url: img.image_url || img.url || '' })),
@@ -160,8 +166,8 @@ const mapHotel = (h) => {
     contact:     h.contact      || {},
     hotel_id:    h.hotel_id,
     place_id:    h.place_id,
-    lat:         parseFloat(h.place?.lat)       || parseFloat(h.nearbyPlace?.lat) || null,
-    lng:         parseFloat(h.place?.lng)       || parseFloat(h.nearbyPlace?.lng) || null,
+    lat:         parseFloat(h.place?.lat) || parseFloat(h.hotel_proxy_lat) || parseFloat(h.lat) || parseFloat(h.nearbyPlace?.lat) || null,
+    lng:         parseFloat(h.place?.lng) || parseFloat(h.hotel_proxy_lng) || parseFloat(h.lng) || parseFloat(h.nearbyPlace?.lng) || null,
   }
 }
 
@@ -224,6 +230,65 @@ const AMENITY_MAP = {
 }
 const normalizeAmenity = (a) => a.toLowerCase().replace(/[\s-]+/g, '_')
 
+function parseAmenityList(value) {
+  if (Array.isArray(value)) return value.map(normalizeAmenity)
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map(v => normalizeAmenity(v.trim()))
+      .filter(Boolean)
+  }
+  return []
+}
+
+function normalizeWeatherToken(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function weatherCategory(value) {
+  const token = normalizeWeatherToken(value)
+  if (!token || token === 'unknown') return 'unknown'
+
+  if (
+    token.includes('rain') || token.includes('drizzle') || token.includes('shower') ||
+    token.includes('storm') || token.includes('thunder')
+  ) return 'rainy'
+
+  if (
+    token.includes('snow') || token.includes('ice') || token.includes('cold') ||
+    token.includes('freez')
+  ) return 'cold'
+
+  if (
+    token.includes('fog') || token.includes('mist') || token.includes('haze') ||
+    token.includes('cloud') || token.includes('overcast') || token === 'mixed' || token === 'mild'
+  ) return 'mild'
+
+  if (token === 'good' || token === 'sunny' || token === 'clear') return 'sunny'
+  return 'mild'
+}
+
+function weatherPresentation(value) {
+  const category = weatherCategory(value)
+  if (category === 'sunny') return { category, emoji: '☀️', label: 'Sunny' }
+  if (category === 'rainy') return { category, emoji: '🌧️', label: 'Rainy' }
+  if (category === 'cold') return { category, emoji: '❄️', label: 'Cold' }
+  if (category === 'mild') return { category, emoji: '🌤️', label: 'Mild' }
+  return { category, emoji: '🌀', label: 'Unknown' }
+}
+
+function normalizePreferredWeather(value) {
+  const token = normalizeWeatherToken(value)
+  if (!token || token === 'any' || token.includes('no preference') || token.includes('no pref')) return 'any'
+  return weatherCategory(token)
+}
+
+function matchesPreferredWeather(actualWeather, preferredWeather) {
+  const preferred = normalizePreferredWeather(preferredWeather)
+  if (preferred === 'any' || preferred === 'unknown') return false
+  return weatherCategory(actualWeather) === preferred
+}
+
 /* ─── Place type icon map ─── */
 const TYPE_ICONS = {
   Temple: '🛕', Park: '🌲', Museum: '🏛️', Market: '🏪',
@@ -265,7 +330,7 @@ function Stars({ count }) {
 }
 
 /* ─── Hotel Card ─── */
-function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, selectedCheckIn, selectedCheckOut, displayCurrency = 'USD', nightsFull = false }) {
+function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, selectedCheckIn, selectedCheckOut, displayCurrency = 'USD', nightsFull = false, isRecommended = false }) {
   const [showReviews, setShowReviews] = useState(false)
   const img = hotel.images?.[0]?.url || hotel.images?.[0] ||
     'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=600&q=80'
@@ -308,6 +373,14 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
 
         {/* ── Body ── */}
         <div className="hp-card-body">
+          {isRecommended && (
+            <div className="hp-reco-badge-row">
+              <span className="hp-reco-badge">✨ AI Recommended</span>
+              {hotel.recommendation_badges?.length > 0 && hotel.recommendation_badges.map(b => (
+                <span key={b} className="hp-reco-tag">{b}</span>
+              ))}
+            </div>
+          )}
           <div className="hp-card-head">
             <div className="hp-card-title-group">
               <h3 className="hp-card-name">{hotel.name}</h3>
@@ -413,9 +486,13 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
 /* ══════════════════════════════════════════════════════════ */
 export default function HotelPicker({ theme, toggleTheme }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const hpLayoutRef = useRef(null)
   const [destination,    setDestination]   = useState(null)
   const [selectedPlaces, setSelectedPlaces] = useState([])
   const [hotels,         setHotels]         = useState([])
+  const [recommendedHotels, setRecommendedHotels] = useState([])
+  const [aiRecoLoading,  setAiRecoLoading]  = useState(true)
   const [loading,        setLoading]        = useState(true)
   const [menuOpen,       setMenuOpen]       = useState(false)
   const [filterStar,     setFilterStar]     = useState(0)
@@ -433,9 +510,54 @@ export default function HotelPicker({ theme, toggleTheme }) {
   const [tripStartDate,  setTripStartDate]  = useState('')
   const [pendingNew,     setPendingNew]     = useState(false) // true when modal is for a brand-new (unconfirmed) selection
   const [focusedHotelId, setFocusedHotelId] = useState(null)
+  const [userPreferredWeather] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
+      return u?.preferences?.preferred_weather || u?.preferred_weather || 'Any'
+    } catch {
+      return 'Any'
+    }
+  })
   const mapPanelRef       = useRef(null)
   const hpMapInstanceRef   = useRef(null)
   const hpPinsRef          = useRef([])
+
+  useEffect(() => {
+    let rafId = null
+
+    const syncRightPanelScroll = () => {
+      const layoutEl = hpLayoutRef.current
+      const rightEl = mapPanelRef.current
+      if (!layoutEl || !rightEl) return
+
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight
+      if (rightMax <= 0) return
+
+      const rect = layoutEl.getBoundingClientRect()
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 1
+      const travel = Math.max(layoutEl.offsetHeight - viewportH, 1)
+      const progress = Math.min(1, Math.max(0, (-rect.top) / travel))
+      rightEl.scrollTop = rightMax * progress
+    }
+
+    const onScrollOrResize = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(() => {
+        syncRightPanelScroll()
+        rafId = null
+      })
+    }
+
+    syncRightPanelScroll()
+    window.addEventListener('scroll', onScrollOrResize, { passive: true })
+    window.addEventListener('resize', onScrollOrResize)
+
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize)
+      window.removeEventListener('resize', onScrollOrResize)
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
+  }, [hotels.length, recommendedHotels.length, selectedHotels.length, aiRecoLoading, loading])
 
   const CATEGORIES = [
     { value: 'all', label: 'All Types' },
@@ -446,12 +568,22 @@ export default function HotelPicker({ theme, toggleTheme }) {
     { value: 'villa', label: '🏛️ Villa' },
   ]
 
+  const resolveDistrictId = (d) => {
+    const candidates = [d?.district_id, d?.districtId, d?.id, d?.destinationId]
+    for (const c of candidates) {
+      const n = Number(c)
+      if (Number.isFinite(n) && n > 0) return n
+    }
+    return null
+  }
+
   // Load district from localStorage
   useEffect(() => {
     const raw = localStorage.getItem('selectedDistrict') || localStorage.getItem('selectedDestination')
     if (!raw) { navigate('/plan-trip'); return }
     const dest = JSON.parse(raw)
-    setDestination(dest)
+    const resolvedDistrictId = resolveDistrictId(dest)
+    setDestination({ ...dest, district_id: resolvedDistrictId ?? dest?.district_id ?? null })
 
     const rawPlaces = localStorage.getItem('selectedPlaces')
     if (rawPlaces) setSelectedPlaces(JSON.parse(rawPlaces))
@@ -497,13 +629,13 @@ export default function HotelPicker({ theme, toggleTheme }) {
     // Fetch hotels near selected places, or fall back to whole district
     const fetchHotels = async () => {
       try {
-        if (dest.district_id) {
-          const districtUrl = `${API_BASE}/hotels/district/${dest.district_id}`
+        if (resolvedDistrictId) {
+          const districtUrl = `${API_BASE}/hotels/district/${resolvedDistrictId}`
           let nearRows = []
           let districtRows = []
 
           if (nearLat && nearLng) {
-            const nearUrl = `${API_BASE}/hotels/near?lat=${nearLat.toFixed(6)}&lng=${nearLng.toFixed(6)}&district_id=${dest.district_id}`
+            const nearUrl = `${API_BASE}/hotels/near?lat=${nearLat.toFixed(6)}&lng=${nearLng.toFixed(6)}&district_id=${resolvedDistrictId}`
             const nearRes = await fetch(nearUrl)
             const nearData = await nearRes.json()
             if (nearRes.ok && nearData.success && Array.isArray(nearData.data)) {
@@ -518,15 +650,10 @@ export default function HotelPicker({ theme, toggleTheme }) {
           }
 
           const mergedRows = mergeUniqueHotels(nearRows, districtRows)
-          setHotels(mergedRows.map(mapHotel))
+          const allMapped = mergedRows.map(mapHotel)
+          setHotels(allMapped)
         } else {
-          const res = await fetch(`${API_BASE}/hotels?limit=all`)
-          const data = await res.json()
-          if (res.ok && data.success && Array.isArray(data.data)) {
-            setHotels(data.data.map(mapHotel))
-          } else {
-            setHotels([])
-          }
+          setHotels([])
         }
       } catch {
         setHotels([])
@@ -535,7 +662,75 @@ export default function HotelPicker({ theme, toggleTheme }) {
       }
     }
     fetchHotels()
-  }, [navigate])
+  }, [navigate, location.key])
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      const districtId = resolveDistrictId(destination)
+      if (!districtId) {
+        setRecommendedHotels([])
+        setAiRecoLoading(false)
+        return
+      }
+
+      try {
+        setAiRecoLoading(true)
+        const token = localStorage.getItem('token')
+        const placeIds = selectedPlaces.map(p => p.id || p.place_id).filter(Boolean).join(',')
+
+        const recoParams = new URLSearchParams({ district_id: districtId })
+        if (placeIds) recoParams.set('selected_place_ids', placeIds)
+        if (filterCat && filterCat !== 'all') recoParams.set('hotel_type', filterCat)
+        if (tripDays) recoParams.set('nights', String(tripDays))
+
+        let recoRes = null
+        if (token) {
+          const aiParams = new URLSearchParams({ district_id: districtId, top_n: '10' })
+          if (filterCat && filterCat !== 'all') aiParams.set('hotel_type', filterCat)
+          recoRes = await fetch(`${API_BASE}/hotels/ai-recommend?${aiParams.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        }
+
+        if (!recoRes || !recoRes.ok) {
+          recoRes = await fetch(`${API_BASE}/hotels/recommended?${recoParams}`)
+        }
+
+        const recoData = await recoRes.json()
+        const recoRows = Array.isArray(recoData.recommendations)
+          ? recoData.recommendations
+          : (Array.isArray(recoData.data) ? recoData.data : [])
+
+        if (recoRes.ok && recoData.success && recoRows.length) {
+          const mappedReco = recoRows.map(h => ({
+            ...mapHotel(h),
+            recommendation_score: h.weather_adjusted_score || h.final_score || h.recommendation_score,
+            recommendation_badges: h.recommendation_badges || [],
+            recommendation_reason: h.recommendation_reason || h.match_reason || '',
+            within_budget: h.within_budget,
+            matches_type: h.matches_type,
+            distance_km: h.distance_km,
+            weather_label: h.weather_label || '',
+            temperature: h.temperature,
+          }))
+
+          const filteredReco = filterCat && filterCat !== 'all'
+            ? mappedReco.filter(h => h.preferenceType === filterCat)
+            : mappedReco
+
+          setRecommendedHotels(filteredReco.slice(0, 10))
+        } else {
+          setRecommendedHotels([])
+        }
+      } catch {
+        setRecommendedHotels([])
+      } finally {
+        setAiRecoLoading(false)
+      }
+    }
+
+    fetchRecommendations()
+  }, [destination, selectedPlaces, filterCat, tripDays])
 
   // Nights already committed to hotels OTHER than the one being edited
   const usedByOthers = (editingId) =>
@@ -810,7 +1005,7 @@ export default function HotelPicker({ theme, toggleTheme }) {
       )}
 
       <div className="hp-content">
-        <div className="hp-content-grid" onClick={e => e.stopPropagation()}>
+        <div className="hp-content-grid" ref={hpLayoutRef} onClick={e => e.stopPropagation()}>
         {/* ══ Left column: filters + hotel grid ══ */}
         <div className="hp-content-main">
         {/* ── Main Filter Bar ── */}
@@ -938,124 +1133,257 @@ export default function HotelPicker({ theme, toggleTheme }) {
             )}
           </div>
         ) : (
-          <div className="hp-grid">
-            {(() => {
-              const totalNightsUsed = selectedHotels.reduce((s, h) => s + h.nights, 0)
-              const nightsFull = !!(tripNightsCap && totalNightsUsed >= tripNightsCap)
-              return filtered.map(h => {
-                const sel = selectedHotels.some(s => s._id === h._id)
-                return (
-                  <HotelCard
-                    key={h._id}
-                    hotel={h}
-                    onSelect={handleSelect}
-                    onDeselect={handleDeselect}
-                    isSelected={sel}
-                    selectedNights={selectedHotels.find(s => s._id === h._id)?.nights}
-                    selectedCheckIn={selectedHotels.find(s => s._id === h._id)?.checkIn}
-                    selectedCheckOut={selectedHotels.find(s => s._id === h._id)?.checkOut}
-                    displayCurrency={priceCurrency}
-                    nightsFull={!sel && nightsFull}
-                  />
-                )
-              })
-            })()}
-          </div>
+          <>
+            {/* ── All Hotels Section ── */}
+            <div className={recommendedHotels.length > 0 ? 'hp-section hp-section--all' : ''}>
+              {recommendedHotels.length > 0 && (
+                <div className="hp-section-header">
+                  <h2 className="hp-section-title">🏨 All hotels in {destination?.name}</h2>
+                </div>
+              )}
+              <div className="hp-grid">
+                {(() => {
+                  const totalNightsUsed = selectedHotels.reduce((s, h) => s + h.nights, 0)
+                  const nightsFull = !!(tripNightsCap && totalNightsUsed >= tripNightsCap)
+                  return filtered.map(h => {
+                    const sel = selectedHotels.some(s => s._id === h._id)
+                    return (
+                      <HotelCard
+                        key={h._id}
+                        hotel={h}
+                        onSelect={handleSelect}
+                        onDeselect={handleDeselect}
+                        isSelected={sel}
+                        selectedNights={selectedHotels.find(s => s._id === h._id)?.nights}
+                        selectedCheckIn={selectedHotels.find(s => s._id === h._id)?.checkIn}
+                        selectedCheckOut={selectedHotels.find(s => s._id === h._id)?.checkOut}
+                        displayCurrency={priceCurrency}
+                        nightsFull={!sel && nightsFull}
+                      />
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          </>
         )}
         </div>{/* end hp-content-main */}
 
-        {/* ══ Right column: Map panel ══ */}
-        <aside className="hp-map-panel" ref={mapPanelRef}>
-          <div className="hp-map-panel-head">
-            <span className="hp-map-panel-title">
-              🗺️ Map View
-              {mapPins.length > 0 && (
-                <span className="hp-map-panel-count">{mapPins.length} hotel{mapPins.length !== 1 ? 's' : ''}</span>
-              )}
-              {placePins.length > 0 && (
-                <span className="hp-map-panel-places">{placePins.length} place{placePins.length !== 1 ? 's' : ''}</span>
-              )}
-            </span>
-            <div className="hp-map-legend-row">
-              <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#0E7C5F'}}/>Hotel</span>
-              <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#f59e0b'}}/>Selected</span>
-              <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#94a3b8'}}/>Filtered</span>
-              {placePins.length > 0 && (
-                <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#6366f1'}}/>Your Stop</span>
-              )}
-            </div>
-          </div>
-          {mapPins.length === 0 && !loading ? (
-            <div className="hp-map-empty">
-              <span>🏨</span>
-              <p>No coordinates available for these hotels yet.</p>
-            </div>
-          ) : (
-            <div className="hp-map-wrap">
-              <MapContainer
-                center={SL_CENTER}
-                zoom={9}
-                className="hp-map"
-                scrollWheelZoom={true}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <HpMapFitBounds
-                  pins={mapPins}
-                  allPins={mapPins}
-                  focusPin={mapPins.find(p => p._id === focusedHotelId) ?? null}
-                />
-                <HpMapCapture mapRef={hpMapInstanceRef} />
-                <HpResetOnMapClick pins={mapPins} />
-                {mapPins.map(pin => (
-                  <Marker key={pin._id} position={[pin.lat, pin.lng]} icon={pin.icon}>
-                    <Popup>
-                      <div className="hp-map-popup">
-                        {pin.images?.[0]?.url && (
+        {/* ══ Right column: AI + Map (sticky) ══ */}
+        <aside className="hp-right-panel" ref={mapPanelRef}>
+          {(aiRecoLoading || recommendedHotels.length > 0) && (
+            <div className="hp-ai-section hp-ai-panel">
+              <div className="hp-ai-section-header">
+                <div className="hp-ai-title-group">
+                  <span className="hp-ai-icon">🤖</span>
+                  <div>
+                    <h3 className="hp-ai-title">AI Hotel Picks</h3>
+                  </div>
+                </div>
+                {!aiRecoLoading && recommendedHotels.length > 0 && (
+                  <span className="hp-ai-badge">{recommendedHotels.length} picks</span>
+                )}
+              </div>
+              <p className="hp-ai-desc">
+                <span className="hp-ai-desc-dot" />
+                Top {aiRecoLoading ? '10' : recommendedHotels.length} hotels ranked by proximity, budget, preference type, and quality for <strong>{destination?.name}</strong>.
+              </p>
+
+              {aiRecoLoading ? (
+                <div className="hp-ai-carousel">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="hp-ai-skel hp-ai-skel--compact">
+                      <div className="hp-ai-skel-img" />
+                      <div className="hp-ai-skel-body">
+                        <div className="hp-ai-skel-line w70" />
+                        <div className="hp-ai-skel-line w45" />
+                        <div className="hp-ai-skel-line w85" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="hp-ai-carousel">
+                  {recommendedHotels.map(hotel => {
+                    const isSelected = !!selectedHotels.find(h => h._id === hotel._id)
+                    const fallback = 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=600&q=80'
+                    const img = hotel.images?.[0]?.url || hotel.images?.[0] || fallback
+                    const scoreRaw = Number(hotel.recommendation_score || 0)
+                    const scorePct = Math.round(scoreRaw <= 1 ? scoreRaw * 100 : scoreRaw)
+                    const weatherInfo = weatherPresentation(hotel.weather_label)
+                    const weatherPrefMatch = matchesPreferredWeather(hotel.weather_label, userPreferredWeather)
+                    const totalNightsUsed = selectedHotels.reduce((s, h) => s + h.nights, 0)
+                    const nightsFull = !!(tripNightsCap && totalNightsUsed >= tripNightsCap)
+                    return (
+                      <div key={`side_reco_${hotel._id}`} className={`hp-ai-card${isSelected ? ' hp-ai-card--selected' : ''}`}>
+                        <div className="hp-ai-card-img-wrap" onClick={() => !isSelected && !nightsFull && handleSelect(hotel)}>
                           <img
-                            src={pin.images[0].url}
-                            alt={pin.name}
-                            className="hp-map-popup-img"
-                            onError={e => { e.target.style.display = 'none' }}
+                            src={img}
+                            alt={hotel.name}
+                            className="hp-ai-card-img"
+                            onError={e => { e.target.src = fallback }}
+                            loading="lazy"
                           />
-                        )}
-                        <div className="hp-map-popup-body">
-                          <span className="hp-map-popup-type">{pin.category} {pin.starRating > 0 ? `· ${'★'.repeat(pin.starRating)}` : ''}</span>
-                          <span className="hp-map-popup-name">{pin.name}</span>
-                          {pin.address?.city && <span className="hp-map-popup-city">📍 {pin.address.city}</span>}
-                          <div className="hp-map-popup-actions">
-                            <button
-                              className={`hp-map-popup-select${pin.isSelected ? ' selected' : ''}`}
-                              onClick={() => pin.isSelected ? handleDeselect(pin._id) : handleSelect(pin)}
-                              disabled={!pin.isSelected && !!(tripNightsCap && selectedHotels.reduce((s,h)=>s+h.nights,0) >= tripNightsCap)}
-                              title={!pin.isSelected && !!(tripNightsCap && selectedHotels.reduce((s,h)=>s+h.nights,0) >= tripNightsCap) ? 'Trip nights fully allocated — remove a hotel first' : undefined}
-                            >
-                              {pin.isSelected ? '✕ Remove' : '🏨 Select'}
-                            </button>
+                          <span className="hp-ai-type-badge">🏨 {hotel.category || 'hotel'}</span>
+                          {isSelected && (
+                            <div className="hp-ai-selected-overlay">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" width="30" height="30"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                          )}
+                          <div className="hp-ai-img-score-bar">
+                            <div className="hp-ai-img-score-fill" style={{ width: `${Math.max(0, Math.min(scorePct, 100))}%` }} />
+                          </div>
+                          <div className="hp-ai-score-pill">
+                            <span className="hp-ai-score-val">{Math.max(0, Math.min(scorePct, 100))}%</span>
+                            <span className="hp-ai-score-lbl"> match</span>
                           </div>
                         </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-                {placePins.map(pin => (
-                  <Marker key={`place-${pin.id ?? pin._id}`} position={[pin.lat, pin.lng]} icon={pin.icon}>
-                    <Popup>
-                      <div className="hp-map-popup">
-                        <div className="hp-map-popup-body">
-                          <span className="hp-map-popup-type">📍 {pin.type}</span>
-                          <span className="hp-map-popup-name">{pin.name}</span>
-                          {pin.duration && <span className="hp-map-popup-city">⏱ {pin.duration}</span>}
+
+                        <div className="hp-ai-card-body">
+                          <h4 className="hp-ai-card-name">{hotel.name}</h4>
+                          <span className="hp-ai-price">from {currencySymbol(priceCurrency)}{convertPrice(hotel.priceRange?.min || 0, priceCurrency).toLocaleString()}/night</span>
+                          {(hotel.weather_label || hotel.temperature != null) && (
+                            <span className="hp-ai-weather">
+                              {weatherInfo.emoji} {weatherInfo.label}
+                              {hotel.temperature != null ? ` · ${Math.round(Number(hotel.temperature))}°C` : ''}
+                            </span>
+                          )}
+                          {hotel.recommendation_reason && (
+                            <p className="hp-ai-reason">🎯 {hotel.recommendation_reason}</p>
+                          )}
+                          {hotel.recommendation_badges?.length > 0 && (
+                            <div className="hp-ai-tags">
+                              {hotel.recommendation_badges.slice(0, 3).map(t => (
+                                <span key={t} className="hp-ai-tag">{t}</span>
+                              ))}
+                              {weatherPrefMatch && <span className="hp-ai-tag">🌦️ Matches your weather preference</span>}
+                            </div>
+                          )}
+                          {hotel.recommendation_badges?.length === 0 && weatherPrefMatch && (
+                            <div className="hp-ai-tags">
+                              <span className="hp-ai-tag">🌦️ Matches your weather preference</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="hp-ai-card-footer">
+                          {isSelected ? (
+                            <button className="hp-ai-add-btn added" onClick={() => handleDeselect(hotel._id)}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+                              Selected
+                            </button>
+                          ) : (
+                            <button
+                              className="hp-ai-add-btn"
+                              onClick={() => handleSelect(hotel)}
+                              disabled={nightsFull}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              {nightsFull ? 'Nights full' : 'Add hotel'}
+                            </button>
+                          )}
+                          {hotel.starRating > 0 && <span className="hp-ai-rating">⭐ {Number(hotel.starRating).toFixed(1)}</span>}
                         </div>
                       </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
+
+          <div className="hp-map-panel">
+            <div className="hp-map-panel-head">
+              <span className="hp-map-panel-title">
+                🗺️ Map View
+                {mapPins.length > 0 && (
+                  <span className="hp-map-panel-count">{mapPins.length} hotel{mapPins.length !== 1 ? 's' : ''}</span>
+                )}
+                {placePins.length > 0 && (
+                  <span className="hp-map-panel-places">{placePins.length} place{placePins.length !== 1 ? 's' : ''}</span>
+                )}
+              </span>
+              <div className="hp-map-legend-row">
+                <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#0E7C5F'}}/>Hotel</span>
+                <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#f59e0b'}}/>Selected</span>
+                <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#94a3b8'}}/>Filtered</span>
+                {placePins.length > 0 && (
+                  <span className="hp-map-leg-item"><span className="hp-map-leg-dot" style={{background:'#6366f1'}}/>Your Stop</span>
+                )}
+              </div>
+            </div>
+            {mapPins.length === 0 && !loading ? (
+              <div className="hp-map-empty">
+                <span>🏨</span>
+                <p>No coordinates available for these hotels yet.</p>
+              </div>
+            ) : (
+              <div className="hp-map-wrap">
+                <MapContainer
+                  center={SL_CENTER}
+                  zoom={9}
+                  className="hp-map"
+                  scrollWheelZoom={true}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <HpMapFitBounds
+                    pins={mapPins}
+                    allPins={mapPins}
+                    focusPin={mapPins.find(p => p._id === focusedHotelId) ?? null}
+                  />
+                  <HpMapCapture mapRef={hpMapInstanceRef} />
+                  <HpResetOnMapClick pins={mapPins} />
+                  {mapPins.map(pin => (
+                    <Marker key={pin._id} position={[pin.lat, pin.lng]} icon={pin.icon}>
+                      <Popup>
+                        <div className="hp-map-popup">
+                          {pin.images?.[0]?.url && (
+                            <img
+                              src={pin.images[0].url}
+                              alt={pin.name}
+                              className="hp-map-popup-img"
+                              onError={e => { e.target.style.display = 'none' }}
+                            />
+                          )}
+                          <div className="hp-map-popup-body">
+                            <span className="hp-map-popup-type">{pin.category} {pin.starRating > 0 ? `· ${'★'.repeat(pin.starRating)}` : ''}</span>
+                            <span className="hp-map-popup-name">{pin.name}</span>
+                            {pin.address?.city && <span className="hp-map-popup-city">📍 {pin.address.city}</span>}
+                            <div className="hp-map-popup-actions">
+                              <button
+                                className={`hp-map-popup-select${pin.isSelected ? ' selected' : ''}`}
+                                onClick={() => pin.isSelected ? handleDeselect(pin._id) : handleSelect(pin)}
+                                disabled={!pin.isSelected && !!(tripNightsCap && selectedHotels.reduce((s,h)=>s+h.nights,0) >= tripNightsCap)}
+                                title={!pin.isSelected && !!(tripNightsCap && selectedHotels.reduce((s,h)=>s+h.nights,0) >= tripNightsCap) ? 'Trip nights fully allocated — remove a hotel first' : undefined}
+                              >
+                                {pin.isSelected ? '✕ Remove' : '🏨 Select'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                  {placePins.map(pin => (
+                    <Marker key={`place-${pin.id ?? pin._id}`} position={[pin.lat, pin.lng]} icon={pin.icon}>
+                      <Popup>
+                        <div className="hp-map-popup">
+                          <div className="hp-map-popup-body">
+                            <span className="hp-map-popup-type">📍 {pin.type}</span>
+                            <span className="hp-map-popup-name">{pin.name}</span>
+                            {pin.duration && <span className="hp-map-popup-city">⏱ {pin.duration}</span>}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+              </div>
+            )}
+          </div>
         </aside>
         </div>{/* end hp-content-grid */}
 

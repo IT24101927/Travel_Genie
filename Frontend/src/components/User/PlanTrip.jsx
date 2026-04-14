@@ -37,9 +37,23 @@ const PROVINCE_CLASS = {
 /* ── District Card ── */
 function DistrictCard({ district, onSelect }) {
   const fallback = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600'
+  const handleSelect = () => onSelect(district)
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleSelect()
+    }
+  }
 
   return (
-    <div className="pt-card">
+    <div
+      className="pt-card pt-card-clickable"
+      role="button"
+      tabIndex={0}
+      onClick={handleSelect}
+      onKeyDown={handleKeyDown}
+      aria-label={`Explore ${district.name} district`}
+    >
       <div className="pt-card-img">
         <img
           src={district.image || fallback}
@@ -68,7 +82,13 @@ function DistrictCard({ district, onSelect }) {
         </p>
 
         <div className="pt-card-footer">
-          <button className="pt-select-btn" onClick={() => onSelect(district)}>
+          <button
+            className="pt-select-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleSelect()
+            }}
+          >
             Explore
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="5" y1="12" x2="19" y2="12"/>

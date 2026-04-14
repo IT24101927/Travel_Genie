@@ -10,6 +10,7 @@ import HotelManagement from './HotelManagement'
 import ExpenseManagement from './ExpenseManagement'
 import ReviewManagement from './ReviewManagement'
 import UserManagement from './UserManagement'
+import AiMonitorPanel from './AiMonitorPanel'
 
 const getUserDisplayName = (user) => {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
@@ -123,6 +124,7 @@ function AdminDashboard({ theme, toggleTheme }) {
 
   const menuItems = [
     { id: 'overview', icon: '📊', label: 'Dashboard' },
+    { id: 'ai-monitor', icon: '🤖', label: 'AI Monitor' },
     { id: 'users', icon: '👥', label: 'Users' },
     { id: 'districts', icon: '🗺️', label: 'Districts' },
     { id: 'destinations', icon: '📍', label: 'Destinations' },
@@ -133,6 +135,7 @@ function AdminDashboard({ theme, toggleTheme }) {
   ]
 
   const quickActions = [
+    { id: 'ai-monitor', icon: '🤖', label: 'AI Monitor', desc: 'Track AI availability & usage', accent: '#14b8a6' },
     { id: 'users', icon: '👥', label: 'Manage Users', desc: 'View & manage all users', accent: '#6366f1' },
     { id: 'destinations', icon: '📍', label: 'Destinations', desc: 'Add & edit destinations', accent: '#10b981' },
     { id: 'districts', icon: '🗺️', label: 'Districts', desc: 'Manage districts & provinces', accent: '#0ea5e9' },
@@ -421,6 +424,7 @@ function AdminDashboard({ theme, toggleTheme }) {
           {activeSection === 'expenses' && <ExpenseManagement theme={theme} toggleTheme={toggleTheme} />}
           {activeSection === 'reviews' && <ReviewManagement theme={theme} toggleTheme={toggleTheme} />}
           {activeSection === 'users' && <UserManagement theme={theme} toggleTheme={toggleTheme} />}
+          {activeSection === 'ai-monitor' && <AiMonitorPanel />}
         </div>
       </main>
     </div>

@@ -13,6 +13,17 @@ function toDateInput(val) {
   return d.toISOString().slice(0, 10)
 }
 
+// Default interests suggested for each travel style
+const STYLE_INTERESTS = {
+  Adventure:   ['Mountains', 'Nature', 'Wildlife', 'Adventure'],
+  Relax:       ['Beaches', 'Relax', 'Nature', 'Photography'],
+  Culture:     ['Historical', 'Cultural', 'Religious', 'Art'],
+  Luxury:      ['Beaches', 'Food', 'Shopping', 'Photography'],
+  Budget:      ['Historical', 'Nature', 'Adventure', 'Food'],
+  Family:      ['Beaches', 'Nature', 'Wildlife', 'Food'],
+  Backpacker:  ['Mountains', 'Nature', 'Historical', 'Adventure'],
+}
+
 // Local wrapper kept for backward compatibility
 function isValidPhone(value) {
   return validatePhone(value).valid
@@ -134,6 +145,7 @@ function Profile({ theme, toggleTheme }) {
   })
   const [passwordError, setPasswordError] = useState('')
   const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+  const [profileFieldErrors, setProfileFieldErrors] = useState({})
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -144,28 +156,22 @@ function Profile({ theme, toggleTheme }) {
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault()
+    const errs = {}
     const nameCheck = validateName(userData.fullName)
-    if (!nameCheck.valid) {
-      showSaved(`⚠️ ${nameCheck.message}`, 'error')
-      return
-    }
+    if (!nameCheck.valid) errs.fullName = nameCheck.message
     const normalizedPhone = normalizePhone(userData.phone)
-    if (!isValidPhone(normalizedPhone)) {
-      showSaved('⚠️ Phone number must be exactly 10 digits and start with 0.', 'error')
-      return
-    }
+    if (!isValidPhone(normalizedPhone)) errs.phone = 'Phone number must be exactly 10 digits and start with 0.'
     const nicCheck = validateNic(userData.nic)
-    if (!nicCheck.valid) {
-      showSaved(`⚠️ ${nicCheck.message}`, 'error')
-      return
-    }
+    if (!nicCheck.valid) errs.nic = nicCheck.message
     if (userData.dateOfBirth) {
       const dobCheck = validateDateOfBirth(userData.dateOfBirth)
-      if (!dobCheck.valid) {
-        showSaved(`⚠️ ${dobCheck.message}`, 'error')
-        return
-      }
+      if (!dobCheck.valid) errs.dateOfBirth = dobCheck.message
     }
+    if (Object.keys(errs).length > 0) {
+      setProfileFieldErrors(errs)
+      return
+    }
+    setProfileFieldErrors({})
 
     const token = localStorage.getItem('token')
     const existing = JSON.parse(localStorage.getItem('currentUser') || '{}')
@@ -202,8 +208,12 @@ function Profile({ theme, toggleTheme }) {
         })
         if (!res.ok) {
           const d = await res.json()
-          showSaved(`⚠️ Warning: ${d.message || 'Server error, local changes saved.'}`, 'error')
-          setIsEditing(false)
+          const msg = d.message || 'Server error. Please try again.'
+          if (msg.toLowerCase().includes('nic')) {
+            setProfileFieldErrors(prev => ({ ...prev, nic: msg }))
+          } else {
+            showSaved(`⚠️ ${msg}`, 'error')
+          }
           return
         }
         // Also sync travel style & interests to preferences table
@@ -549,10 +559,11 @@ function Profile({ theme, toggleTheme }) {
                       type="text"
                       id="fullName"
                       value={userData.fullName}
-                      onChange={(e) => setUserData({ ...userData, fullName: e.target.value })}
+                      onChange={(e) => { setUserData({ ...userData, fullName: e.target.value }); setProfileFieldErrors(prev => ({ ...prev, fullName: '' })) }}
                       disabled={!isEditing}
                       required
                     />
+                    {profileFieldErrors.fullName && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {profileFieldErrors.fullName}</p>}
                   </div>
 
                   <div className="form-group">
@@ -572,12 +583,13 @@ function Profile({ theme, toggleTheme }) {
                       type="tel"
                       id="phone"
                       value={userData.phone}
-                      onChange={(e) => setUserData({ ...userData, phone: normalizePhone(e.target.value) })}
+                      onChange={(e) => { setUserData({ ...userData, phone: normalizePhone(e.target.value) }); setProfileFieldErrors(prev => ({ ...prev, phone: '' })) }}
                       disabled={!isEditing}
                       inputMode="numeric"
                       maxLength={10}
                       placeholder="07XXXXXXXX"
                     />
+                    {profileFieldErrors.phone && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {profileFieldErrors.phone}</p>}
                   </div>
 
                   <div className="form-group">
@@ -586,9 +598,19 @@ function Profile({ theme, toggleTheme }) {
                       type="date"
                       id="dateOfBirth"
                       value={userData.dateOfBirth}
-                      onChange={(e) => setUserData({ ...userData, dateOfBirth: e.target.value })}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setUserData({ ...userData, dateOfBirth: v })
+                        if (v) {
+                          const r = validateDateOfBirth(v)
+                          setProfileFieldErrors(prev => ({ ...prev, dateOfBirth: r.valid ? '' : r.message }))
+                        } else {
+                          setProfileFieldErrors(prev => ({ ...prev, dateOfBirth: '' }))
+                        }
+                      }}
                       disabled={!isEditing}
                     />
+                    {profileFieldErrors.dateOfBirth && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {profileFieldErrors.dateOfBirth}</p>}
                   </div>
 
                   <div className="form-group">
@@ -597,10 +619,11 @@ function Profile({ theme, toggleTheme }) {
                       type="text"
                       id="nic"
                       value={userData.nic}
-                      onChange={(e) => setUserData({ ...userData, nic: e.target.value })}
+                      onChange={(e) => { setUserData({ ...userData, nic: e.target.value }); setProfileFieldErrors(prev => ({ ...prev, nic: '' })) }}
                       disabled={!isEditing}
                       placeholder="e.g. 991234567V or P12345678"
                     />
+                    {profileFieldErrors.nic && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {profileFieldErrors.nic}</p>}
                   </div>
 
                   <div className="form-group">
@@ -623,7 +646,14 @@ function Profile({ theme, toggleTheme }) {
                     <select
                       id="travelStyle"
                       value={userData.travelStyle}
-                      onChange={(e) => setUserData({ ...userData, travelStyle: e.target.value })}
+                      onChange={(e) => {
+                        const newStyle = e.target.value
+                        const defaults = STYLE_INTERESTS[newStyle] || []
+                        const prevDefaults = STYLE_INTERESTS[userData.travelStyle] || []
+                        const withoutOld = userData.interests.filter(i => !prevDefaults.includes(i))
+                        const merged = [...new Set([...withoutOld, ...defaults])]
+                        setUserData({ ...userData, travelStyle: newStyle, interests: merged })
+                      }}
                       disabled={!isEditing}
                     >
                       <option value="">Select a style</option>
@@ -838,6 +868,21 @@ function Profile({ theme, toggleTheme }) {
                         <option value="LKR">LKR (Rs)</option>
                         <option value="USD">USD ($)</option>
                         <option value="EUR">EUR (€)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="preferred_weather">Preferred Weather</label>
+                      <select
+                        id="preferred_weather"
+                        value={preferences.preferred_weather || 'Any'}
+                        onChange={(e) => setPreferences({ ...preferences, preferred_weather: e.target.value })}
+                      >
+                        <option value="Sunny">☀️ Sunny</option>
+                        <option value="Mild">🌤️ Mild</option>
+                        <option value="Rainy">🌧️ Rainy</option>
+                        <option value="Cold">❄️ Cold</option>
+                        <option value="Any">🌀 Any / No Preference</option>
                       </select>
                     </div>
                   </div>

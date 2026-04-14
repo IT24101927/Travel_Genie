@@ -180,7 +180,7 @@ async function sendVerificationEmail(email, code) {
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password, phone, date_of_birth, nic, gender, avatar,
-            interests, travelStyle, currency } = req.body;
+            interests, travelStyle, currency, preferred_weather } = req.body;
 
     const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -201,6 +201,11 @@ exports.register = async (req, res, next) => {
 
     const userExists = await User.findOne({ where: { email: normalizedEmail } });
     if (userExists) return res.status(400).json(errorResponse('User already exists'));
+
+    if (normalizedNic) {
+      const nicExists = await User.findOne({ where: { nic: normalizedNic } });
+      if (nicExists) return res.status(400).json(errorResponse('A user with this NIC already exists'));
+    }
 
     // Pack extra profile data into the address JSONB column
     const addressData = {
@@ -230,7 +235,7 @@ exports.register = async (req, res, next) => {
         const style = await TravelStyle.findOne({ where: { style_name: travelStyle } });
         if (style) prefData.style_id = style.style_id;
       }
-      prefData.regional_prefs = { currency: currency || 'LKR' };
+      prefData.regional_prefs = { currency: currency || 'LKR', preferred_weather: preferred_weather || null };
       await UserPreference.create(prefData);
     } catch { /* pref row creation is non-critical */ }
 
@@ -325,6 +330,9 @@ exports.updateProfile = async (req, res, next) => {
     }
     if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'nic')) {
       fieldsToUpdate.nic = normalizeNic(fieldsToUpdate.nic);
+      const { Op } = require('sequelize');
+      const nicExists = await User.findOne({ where: { nic: fieldsToUpdate.nic, id: { [Op.ne]: req.user.id } } });
+      if (nicExists) return res.status(400).json(errorResponse('A user with this NIC already exists'));
     }
 
     if (!isValidLocalPhone(fieldsToUpdate.phone)) {
@@ -554,6 +562,13 @@ exports.updateUser = async (req, res, next) => {
       fields.nic = normalizeNic(fields.nic);
     }
 
+    // Check NIC uniqueness on update (exclude current user)
+    if (fields.nic) {
+      const { Op } = require('sequelize');
+      const nicExists = await User.findOne({ where: { nic: fields.nic, id: { [Op.ne]: user.id } } });
+      if (nicExists) return res.status(400).json(errorResponse('A user with this NIC already exists'));
+    }
+
     if (!isValidLocalPhone(fields.phone)) {
       return res.status(400).json(errorResponse('Phone number must be exactly 10 digits and start with 0'));
     }
@@ -567,6 +582,43 @@ exports.updateUser = async (req, res, next) => {
       fields.address = { ...(user.address || {}), ...fields.address };
     }
     await user.update(fields);
+
+    // Sync interests to user_interests table if address.interests was updated
+    const newInterests = fields.address?.interests;
+    if (Array.isArray(newInterests)) {
+      try {
+        const tags = await Tag.findAll({ where: { tag_name: { [require('sequelize').Op.in]: newInterests } } });
+        const tagIds = tags.map(t => t.tag_id);
+        await UserInterest.destroy({ where: { user_id: user.id } });
+        if (tagIds.length > 0) {
+          await UserInterest.bulkCreate(tagIds.map(tag_id => ({ user_id: user.id, tag_id })));
+        }
+      } catch { /* non-critical */ }
+    }
+
+    // Sync travel style to user_preferences if address.travelStyle was updated
+    const newTravelStyle = fields.address?.travelStyle;
+    if (newTravelStyle !== undefined) {
+      try {
+        let pref = await UserPreference.findByPk(user.id);
+        if (!pref) pref = await UserPreference.create({ user_id: user.id });
+        const style = newTravelStyle
+          ? await TravelStyle.findOne({ where: { style_name: newTravelStyle } })
+          : null;
+        await pref.update({ style_id: style ? style.style_id : null });
+      } catch { /* non-critical */ }
+    }
+
+    // Sync preferred_weather to user_preferences if updated
+    const newWeather = fields.address?.prefs?.preferred_weather;
+    if (newWeather !== undefined) {
+      try {
+        let pref = await UserPreference.findByPk(user.id);
+        if (!pref) pref = await UserPreference.create({ user_id: user.id });
+        await pref.update({ preferred_weather: newWeather || null });
+      } catch { /* non-critical */ }
+    }
+
     res.status(200).json(successResponse(user, 'User updated successfully'));
   } catch (error) { next(error); }
 };
@@ -619,7 +671,7 @@ exports.deleteOwnAccount = async (req, res, next) => {
 // @desc    Create user (Admin)  @route POST /api/users  @access Private/Admin
 exports.createUser = async (req, res, next) => {
   try {
-    const { name, email, password, phone, gender, role, isActive, travelStyle, interests, date_of_birth, nic, currency } = req.body;
+    const { name, email, password, phone, gender, role, isActive, travelStyle, interests, date_of_birth, nic, currency, preferred_weather } = req.body;
     if (!name || !email || !password) return res.status(400).json(errorResponse('Name, email, and password are required'));
 
     if (!isPasswordValid(password)) {
@@ -642,10 +694,15 @@ exports.createUser = async (req, res, next) => {
     const userExists = await User.findOne({ where: { email: normalizedEmail } });
     if (userExists) return res.status(400).json(errorResponse('User with this email already exists'));
 
+    if (normalizedNic) {
+      const nicExists = await User.findOne({ where: { nic: normalizedNic } });
+      if (nicExists) return res.status(400).json(errorResponse('A user with this NIC already exists'));
+    }
+
     const addressData = {
       travelStyle: travelStyle || null,
       interests: Array.isArray(interests) ? interests : [],
-      prefs: { currency: currency || 'LKR' },
+      prefs: { currency: currency || 'LKR', preferred_weather: preferred_weather || null },
     };
 
     let user;
@@ -667,6 +724,29 @@ exports.createUser = async (req, res, next) => {
       await syncUsersIdSequence();
       user = await User.create(userPayload);
     }
+
+    // Save UserPreference row (style_id + preferred_weather)
+    try {
+      const prefData = { user_id: user.id };
+      if (travelStyle) {
+        const style = await TravelStyle.findOne({ where: { style_name: travelStyle } });
+        if (style) prefData.style_id = style.style_id;
+      }
+      prefData.preferred_weather = preferred_weather || null;
+      prefData.regional_prefs = { currency: currency || 'LKR' };
+      await UserPreference.create(prefData);
+    } catch { /* pref row creation is non-critical */ }
+
+    // Save interests to user_interests junction table
+    try {
+      if (Array.isArray(interests) && interests.length > 0) {
+        const tags = await Tag.findAll({ where: { tag_name: { [require('sequelize').Op.in]: interests } } });
+        if (tags.length > 0) {
+          const rows = tags.map(t => ({ user_id: user.id, tag_id: t.tag_id }));
+          await UserInterest.bulkCreate(rows, { ignoreDuplicates: true });
+        }
+      }
+    } catch { /* interest linking is non-critical */ }
 
     res.status(201).json(successResponse(user, 'User created successfully'));
   } catch (error) { next(error); }

@@ -36,6 +36,34 @@ const asNumber = (value, fallback = 0) => {
   return Number.isFinite(num) ? num : fallback;
 };
 
+const deriveTimelineStatus = ({ startDate, endDate, currentStatus }) => {
+  // Preserve explicit non-timeline states.
+  if (currentStatus === 'draft' || currentStatus === 'cancelled') return currentStatus;
+  if (!startDate) return currentStatus || 'planned';
+
+  const today = new Date().toISOString().slice(0, 10);
+  const start = String(startDate).slice(0, 10);
+  const end = endDate ? String(endDate).slice(0, 10) : null;
+
+  if (today < start) return 'planned';
+  if (end && today > end) return 'completed';
+  return 'ongoing';
+};
+
+const syncTripTimelineStatus = async (trip) => {
+  if (!trip) return trip;
+  const nextStatus = deriveTimelineStatus({
+    startDate: trip.start_date,
+    endDate: trip.end_date,
+    currentStatus: trip.status,
+  });
+
+  if (nextStatus && trip.status !== nextStatus) {
+    await trip.update({ status: nextStatus });
+  }
+  return trip;
+};
+
 const normalizeTripPayload = (body = {}, { partial = false } = {}) => {
   const payload = { ...body };
 
@@ -118,6 +146,7 @@ exports.getMyTrips = async (req, res, next) => {
       ],
       order: [['start_date', 'DESC']],
     });
+    await Promise.all(trips.map((trip) => syncTripTimelineStatus(trip)));
     res.status(200).json(successResponse(trips, 'Trips fetched'));
   } catch (error) { next(error); }
 };
@@ -135,6 +164,7 @@ exports.getAllTrips = async (req, res, next) => {
       ],
       offset, limit, order: [['createdAt', 'DESC']],
     });
+    await Promise.all(trips.map((trip) => syncTripTimelineStatus(trip)));
     res.status(200).json({ success: true, count: trips.length, total, page, pages: Math.ceil(total / limit), data: trips });
   } catch (error) { next(error); }
 };
@@ -151,6 +181,7 @@ exports.getTrip = async (req, res, next) => {
     if (!trip) return res.status(404).json(errorResponse('Trip not found'));
     if (trip.user_id !== req.user.id && req.user.role !== 'admin')
       return res.status(403).json(errorResponse('Not authorised'));
+    await syncTripTimelineStatus(trip);
     res.status(200).json(successResponse(trip, 'Trip fetched'));
   } catch (error) { next(error); }
 };
@@ -160,6 +191,7 @@ exports.createTrip = async (req, res, next) => {
   try {
     const payload = normalizeTripPayload({ ...req.body, user_id: req.user.id }, { partial: false });
     const trip = await TripItinerary.create(payload);
+    await syncTripTimelineStatus(trip);
     const full = await TripItinerary.findByPk(trip.trip_id, {
       include: [{ model: District, as: 'district', attributes: ['district_id', 'name', 'province'] }],
     });
@@ -176,6 +208,7 @@ exports.updateTrip = async (req, res, next) => {
       return res.status(403).json(errorResponse('Not authorised'));
     const payload = normalizeTripPayload(req.body, { partial: true });
     await trip.update(payload);
+    await syncTripTimelineStatus(trip);
     res.status(200).json(successResponse(trip, 'Trip updated'));
   } catch (error) { next(error); }
 };

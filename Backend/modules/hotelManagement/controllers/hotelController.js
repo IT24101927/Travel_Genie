@@ -5,6 +5,7 @@ const District = require('../../placeManagement/models/District');
 const Tag = require('../../tagManagement/models/Tag');
 const TripItinerary = require('../../tripItineraryManagement/models/TripItinerary');
 const { successResponse, errorResponse } = require('../../../utils/helpers');
+const { scoreHotels } = require('../services/hotelRecommendationService');
 
 const placeInclude = {
   model: Place,
@@ -287,6 +288,63 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// @desc    Get recommended hotels for a trip  @route GET /api/hotels/recommended  @access Public
+exports.getRecommendedHotels = async (req, res, next) => {
+  try {
+    const districtId = parseInt(req.query.district_id, 10);
+    if (isNaN(districtId)) {
+      return res.status(400).json(errorResponse('district_id query param is required'));
+    }
+
+    // Fetch all active hotels in the district
+    const hotelRows = await Hotel.findAll({
+      include: [{ ...placeInclude, where: { isActive: true, district_id: districtId }, required: true }, nearbyPlaceInclude],
+      order: [['rating', 'DESC']],
+    });
+    const hotels = hotelRows.map(withLegacyPlaceImages);
+
+    if (!hotels.length) {
+      return res.status(200).json({ success: true, count: 0, data: [] });
+    }
+
+    // Build centroid from selected place IDs (optional)
+    let centroidLat = null;
+    let centroidLng = null;
+    const rawPlaceIds = req.query.selected_place_ids;
+    if (rawPlaceIds) {
+      const placeIds = String(rawPlaceIds).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (placeIds.length) {
+        const places = await Place.findAll({
+          where: { place_id: { [Op.in]: placeIds } },
+          attributes: ['lat', 'lng'],
+        });
+        const validPlaces = places.filter(p => p.lat != null && p.lng != null);
+        if (validPlaces.length) {
+          centroidLat = validPlaces.reduce((s, p) => s + parseFloat(p.lat), 0) / validPlaces.length;
+          centroidLng = validPlaces.reduce((s, p) => s + parseFloat(p.lng), 0) / validPlaces.length;
+        }
+      }
+    }
+
+    // Parse budget — convert from user currency to LKR
+    const LKR_RATES = { LKR: 1, USD: 0.0031, EUR: 0.0029 };
+    const currency  = (req.query.currency || 'LKR').toUpperCase();
+    const rate      = LKR_RATES[currency] || 1;
+    const budgetLKR = req.query.hotel_budget ? Number(req.query.hotel_budget) / rate : 0;
+
+    const context = {
+      centroidLat,
+      centroidLng,
+      hotelType:  req.query.hotel_type  || null,
+      budgetLKR,
+      nights:     parseInt(req.query.nights, 10) || 1,
+    };
+
+    const scored = scoreHotels(hotels, context);
+    res.status(200).json({ success: true, count: scored.length, data: scored });
+  } catch (error) { next(error); }
+};
 
 // @desc    Get hotels near coordinates  @route GET /api/hotels/near  @access Public
 exports.getHotelsNear = async (req, res, next) => {

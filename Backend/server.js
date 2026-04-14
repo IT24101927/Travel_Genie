@@ -26,6 +26,9 @@ const tagRoutes = require('./modules/tagManagement/routes/tagRoutes');
 const tripPlanRoutes = require('./modules/tripItineraryManagement/routes/tripPlanRoutes');
 const notificationRoutes = require('./modules/notificationManagement/routes/notificationRoutes');
 const priceRecordRoutes = require('./modules/expenseManagement/routes/priceRecordRoutes');
+const aiPlaceRoutes    = require('./modules/placeManagement/routes/aiPlaceRoutes');
+const aiHotelRoutes    = require('./modules/hotelManagement/routes/aiHotelRoutes');
+const aiBudgetRoutes   = require('./modules/expenseManagement/routes/aiBudgetRoutes');
 
 // Initialize Express App
 const app = express();
@@ -68,9 +71,13 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/users', userRoutes);
 app.use('/api/preferences', preferenceRoutes);
 app.use('/api/destinations', destinationRoutes);
+app.use('/api/hotels',       aiHotelRoutes);
+app.use('/api/budget',       aiBudgetRoutes);
 app.use('/api/hotels', hotelRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/reviews', reviewRoutes);
+// AI route MUST be before placeRoutes — /places/:id would capture /places/ai-recommend first
+app.use('/api/places',       aiPlaceRoutes);
 // New EER-based routes (placeRoutes handles /districts and /places sub-paths)
 app.use('/api', placeRoutes);
 app.use('/api/tags', tagRoutes);

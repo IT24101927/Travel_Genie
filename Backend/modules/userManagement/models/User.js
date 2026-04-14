@@ -23,7 +23,7 @@ const User = sequelize.define(
     phone: { type: DataTypes.STRING },
     date_of_birth: { type: DataTypes.DATEONLY },
     gender: { type: DataTypes.ENUM('male', 'female', 'other') },
-    nic: { type: DataTypes.STRING },
+    nic: { type: DataTypes.STRING, unique: true },
     avatar: { type: DataTypes.TEXT, defaultValue: "" },
     address: { type: DataTypes.JSONB, defaultValue: {} },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },

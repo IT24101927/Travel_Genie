@@ -8,6 +8,7 @@ const {
   deleteHotel,
   getHotelsByDistrict,
   getHotelsNear,
+  getRecommendedHotels,
 } = require('../controllers/hotelController');
 
 const { protect, authorize } = require('../../../middleware/auth');
@@ -20,6 +21,7 @@ const {
 // Public routes
 router.get('/',                          getAllHotels);
 router.get('/near',                      getHotelsNear);
+router.get('/recommended',               getRecommendedHotels);
 router.get('/district/:districtId',      positiveIntParam('districtId', 'districtId'), getHotelsByDistrict);
 router.get('/:id',                       positiveIntParam('id'), getHotel);
 

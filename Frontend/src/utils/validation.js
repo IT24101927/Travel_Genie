@@ -103,8 +103,16 @@ export function validateEmail(value) {
   if (!value || !value.trim()) {
     return { valid: false, message: 'Email is required.' }
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
-    return { valid: false, message: 'Please enter a valid email address.' }
+  const trimmed = value.trim()
+  if (!trimmed.includes('@') || trimmed.endsWith('@')) {
+    return { valid: false, message: 'Email must include @ followed by a domain (e.g. name@example.com).' }
+  }
+  const afterAt = trimmed.split('@').slice(1).join('@')
+  if (!afterAt || !afterAt.includes('.') || afterAt.startsWith('.') || afterAt.endsWith('.')) {
+    return { valid: false, message: 'Email domain must include a suffix like .com or .org (e.g. name@example.com).' }
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return { valid: false, message: 'Please enter a valid email address (e.g. name@example.com).' }
   }
   return { valid: true, message: '' }
 }

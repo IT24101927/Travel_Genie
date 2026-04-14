@@ -148,6 +148,13 @@ function getUser() {
   try { return JSON.parse(localStorage.getItem('currentUser')) } catch { return null }
 }
 function getToken() { return localStorage.getItem('token') || '' }
+function tripIdOf(trip) {
+  return String(trip?.dbTripId || trip?.trip_id || trip?.id || trip?._id || '')
+}
+function isLockedTrip(trip) {
+  const status = String(trip?.status || '').toLowerCase()
+  return status === 'completed' || status === 'cancelled'
+}
 
 /* ─── Display currencies (mirrors HotelPicker) ──────────────────── */
 const DISPLAY_CURRENCIES = [
@@ -176,6 +183,30 @@ function pct(spent, budget) {
 function dateFmt(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function normalizePlanSplit(split) {
+  const keys = ['food', 'transport', 'activities_misc']
+  const fallback = { food: 55, transport: 30, activities_misc: 15 }
+  const values = keys.map((key) => Math.max(Number(split?.[key]) || 0, 0))
+  const total = values.reduce((sum, value) => sum + value, 0)
+  if (total <= 0) return fallback
+
+  const scaled = values.map((value) => (value / total) * 100)
+  const base = scaled.map((value) => Math.floor(value))
+  let remainder = 100 - base.reduce((sum, value) => sum + value, 0)
+  const order = scaled
+    .map((value, idx) => ({ idx, frac: value - base[idx] }))
+    .sort((a, b) => (b.frac - a.frac) || (a.idx - b.idx))
+
+  let i = 0
+  while (remainder > 0) {
+    base[order[i % order.length].idx] += 1
+    remainder -= 1
+    i += 1
+  }
+
+  return { food: base[0], transport: base[1], activities_misc: base[2] }
 }
 
 /* ── ls helpers for local (non-API) expenses ── */
@@ -373,7 +404,7 @@ function ExpenseForm({ initial, tripId, tripOptions = [], onSave, onCancel }) {
           <select className="et-select" value={selectedTripId} onChange={e => setSelectedTripId(e.target.value)}>
             <option value="">Select trip plan</option>
             {tripOptions.map(t => (
-              <option key={String(t.id || t._id)} value={String(t.id || t._id)}>
+              <option key={tripIdOf(t)} value={tripIdOf(t)}>
                 {t.tripName || t.destinationName}
               </option>
             ))}
@@ -515,6 +546,9 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
   })
   const [budgetEdit,  setBudgetEdit]  = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
+  const [budgetSplits, setBudgetSplits] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('tripBudgetSplits') || '{}') } catch { return {} }
+  })
 
   /* ── fetch expense categories from backend for category_id lookup ── */
   useEffect(() => {
@@ -547,19 +581,38 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
       localStorage.setItem('myTrips', JSON.stringify(t))
       // Auto-seed tripBudgets from each trip's planned totalBudget
       const stored = JSON.parse(localStorage.getItem('tripBudgets') || '{}')
+      const splitStored = JSON.parse(localStorage.getItem('tripBudgetSplits') || '{}')
       let changed = false
+      let splitChanged = false
       t.forEach(trip => {
-        const tid = String(trip.id || trip._id)
+        const tid = tripIdOf(trip)
         const planBudget = Number(trip.totalBudget || trip.total_budget || 0)
         // Keep expense budget cache aligned with latest trip plan budget.
         if (planBudget > 0 && Number(stored[tid] || 0) !== planBudget) {
           stored[tid] = planBudget
           changed = true
         }
+
+        if (trip?.dailySplit) {
+          const normalized = normalizePlanSplit(trip.dailySplit)
+          const prev = splitStored[tid] || {}
+          if (
+            Number(prev.food) !== Number(normalized.food) ||
+            Number(prev.transport) !== Number(normalized.transport) ||
+            Number(prev.activities_misc) !== Number(normalized.activities_misc)
+          ) {
+            splitStored[tid] = normalized
+            splitChanged = true
+          }
+        }
       })
       if (changed) {
         setBudgets(stored)
         localStorage.setItem('tripBudgets', JSON.stringify(stored))
+      }
+      if (splitChanged) {
+        setBudgetSplits(splitStored)
+        localStorage.setItem('tripBudgetSplits', JSON.stringify(splitStored))
       }
     }
 
@@ -665,7 +718,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
     if (activeTripId === 'all') {
       const localAll = [
         ...loadLocal('standalone'),
-        ...allKnownTrips.flatMap(t => loadLocal(t.id || t._id)),
+        ...allKnownTrips.flatMap(t => loadLocal(tripIdOf(t))),
       ]
       if (!apiOk) {
         loaded = localAll
@@ -749,6 +802,11 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
   /* ── save expense ── */
   const handleSave = async (payload) => {
     const targetTripId = String(payload.tripId || (activeTripId === 'all' ? 'standalone' : activeTripId))
+    const targetTrip = trips.find(t => tripIdOf(t) === targetTripId)
+    if (targetTrip && isLockedTrip(targetTrip)) {
+      setSyncNotice('This trip is locked (completed/cancelled). New expenses cannot be added.')
+      return
+    }
     let backendErrorMsg = ''
 
     if (useBackend || (token && targetTripId !== 'all' && targetTripId !== 'standalone')) {
@@ -832,6 +890,12 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
 
   /* ── delete ── */
   const handleDelete = async (exp) => {
+    const expTripId = String(exp.tripId || exp.trip_id || '')
+    const expTrip = trips.find(t => tripIdOf(t) === expTripId)
+    if (expTrip && isLockedTrip(expTrip)) {
+      setSyncNotice('This trip is locked (completed/cancelled). Expenses are read-only.')
+      return
+    }
     if (!window.confirm('Delete this expense?')) return
 
     // Helper: remove an expense id from whichever localStorage bucket it lives in
@@ -842,7 +906,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
         activeTripId !== 'all' ? String(activeTripId) : null,
         ownerTripId || null,
         'standalone',
-        ...trips.map(t => String(t.id || t._id)),
+        ...trips.map(t => tripIdOf(t)),
       ])
       bucketsToCheck.forEach(tid => {
         if (!tid) return
@@ -883,12 +947,12 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
 
   // For "All Trips": sum every trip's budget and hotel cost
   const budget = isAllTrips
-    ? trips.reduce((s, t) => s + (budgets[String(t.id || t._id)] || 0), 0)
+    ? trips.reduce((s, t) => s + (budgets[tripIdOf(t)] || 0), 0)
     : (budgets[activeTripId] || 0)
 
   const hotelBudget = isAllTrips
     ? trips.reduce((s, t) => s + (t.hotelBudget || 0), 0)
-    : (trips.find(t => String(t.id || t._id) === String(activeTripId))?.hotelBudget || 0)
+    : (trips.find(t => tripIdOf(t) === String(activeTripId))?.hotelBudget || 0)
 
   /* ── display-currency helpers (defined early so all derived vars can use them) ── */
   const currSym = symFor(displayCurrency)
@@ -955,7 +1019,8 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
   }, [expenses, listTripFilter, filterCat, searchQ, sortBy])
 
   /* ── trip label + currency ── */
-  const activeTrip = trips.find(t => String(t.id || t._id) === String(activeTripId))
+  const activeTrip = trips.find(t => tripIdOf(t) === String(activeTripId))
+  const activeTripLocked = !isAllTrips && !!activeTrip && isLockedTrip(activeTrip)
 
   /* Planned budget breakdown from the trip's planning data */
   const planBudget = isAllTrips
@@ -966,10 +1031,38 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
     : (activeTrip?.hotelBudget || 0)
   const planBudgetDisplay   = convertAmt(planBudget, 'LKR', displayCurrency)
   const planHotelDisplay    = convertAmt(planHotel,  'LKR', displayCurrency)
-  const planRemain          = planBudgetDisplay - planHotelDisplay
-  const planFood      = Math.round(planRemain * 0.55)
-  const planTransport = Math.round(planRemain * 0.30)
-  const planMisc      = planRemain - planFood - planTransport
+  const planRemain          = Math.max(planBudgetDisplay - planHotelDisplay, 0)
+
+  const planBySplit = useMemo(() => {
+    const computeForTrip = (trip) => {
+      const tid = tripIdOf(trip)
+      const split = normalizePlanSplit(budgetSplits[tid] || trip?.dailySplit)
+      const tripBudgetDisplay = convertAmt(Number(trip?.totalBudget || trip?.total_budget || 0), 'LKR', displayCurrency)
+      const tripHotelDisplay = convertAmt(Number(trip?.hotelBudget || trip?.hotel_budget || 0), 'LKR', displayCurrency)
+      const remain = Math.max(tripBudgetDisplay - tripHotelDisplay, 0)
+      const food = Math.round(remain * (split.food / 100))
+      const transport = Math.round(remain * (split.transport / 100))
+      const misc = remain - food - transport
+      return { food, transport, misc }
+    }
+
+    if (isAllTrips) {
+      return trips.reduce((acc, trip) => {
+        const seg = computeForTrip(trip)
+        acc.food += seg.food
+        acc.transport += seg.transport
+        acc.misc += seg.misc
+        return acc
+      }, { food: 0, transport: 0, misc: 0 })
+    }
+
+    if (!activeTrip) return { food: 0, transport: 0, misc: 0 }
+    return computeForTrip(activeTrip)
+  }, [activeTrip, budgetSplits, displayCurrency, isAllTrips, trips])
+
+  const planFood = planBySplit.food
+  const planTransport = planBySplit.transport
+  const planMisc = planBySplit.misc
 
   /* Actual spend per plan category */
   const spentFood      = expenses.filter(e => e.category === 'food').reduce((s, e) => s + convertAmt(e.amount || 0, e.currency || 'LKR', displayCurrency), 0)
@@ -978,6 +1071,12 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
 
   /* ── edit helper ── */
   const openEdit = (exp) => {
+    const expTripId = String(exp.tripId || exp.trip_id || '')
+    const expTrip = trips.find(t => tripIdOf(t) === expTripId)
+    if (expTrip && isLockedTrip(expTrip)) {
+      setSyncNotice('This trip is locked (completed/cancelled). Expenses are read-only.')
+      return
+    }
     setEditTarget(exp)
     setShowForm(true)
   }
@@ -1078,7 +1177,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                 {activeTripId === 'all'
                   ? 'All Trips'
                   : (() => {
-                      const t = trips.find(t => String(t.id || t._id) === String(activeTripId))
+                      const t = trips.find(t => tripIdOf(t) === String(activeTripId))
                       if (!t) return 'All Trips'
                       const name = t.tripName || t.destinationName
                       const d = t.startDate ? new Date(t.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null
@@ -1104,7 +1203,8 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                     </span>
                   </button>
                   {trips.map(t => {
-                    const tid  = String(t.id || t._id)
+                    const tid  = tripIdOf(t)
+                    const locked = isLockedTrip(t)
                     const name = t.tripName || t.destinationName
                     const d1   = t.startDate ? new Date(t.startDate).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null
                     const d2   = t.endDate   ? new Date(t.endDate).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : null
@@ -1112,14 +1212,15 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                     return (
                       <button
                         key={tid}
-                        className={`et-trip-option${String(activeTripId) === tid ? ' active' : ''}`}
+                        className={`et-trip-option${String(activeTripId) === tid ? ' active' : ''}${locked ? ' locked' : ''}`}
                         onClick={() => { setActiveTripId(tid); setTripPickerOpen(false) }}
                       >
                         {String(activeTripId) === tid && <span className="et-trip-option-tick">✓</span>}
                         <span className="et-trip-option-body">
                           <span className="et-trip-option-name">{name}</span>
-                          {dateStr && <span className="et-trip-option-date">{dateStr}</span>}
+                          <span className="et-trip-option-date">{dateStr || 'No date'}{locked ? ' · Locked' : ''}</span>
                         </span>
+                        {locked && <span className="et-trip-option-lock">🔒</span>}
                       </button>
                     )
                   })}
@@ -1231,7 +1332,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
             </div>
           )}
 
-          {!isAllTrips && (
+          {!isAllTrips && !activeTripLocked && (
             <button
               className="et-add-btn"
               onClick={() => { setEditTarget(null); setShowForm(s => !s) }}
@@ -1433,7 +1534,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                       {expenses.slice(0, 5).map((e, i) => {
                         const cat = CAT_MAP[e.category] || CAT_MAP.other
                         const expTrip = isAllTrips
-                          ? trips.find(t => String(t.id || t._id) === String(e.tripId || e.trip_id))
+                          ? trips.find(t => tripIdOf(t) === String(e.tripId || e.trip_id))
                           : null
                         return (
                           <tr key={e.id || i}>
@@ -1472,7 +1573,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                 <select className="et-select" value={listTripFilter} onChange={e => setListTripFilter(e.target.value)}>
                   <option value="all">All Created Plans</option>
                   {trips.map(t => (
-                    <option key={String(t.id || t._id)} value={String(t.id || t._id)}>
+                    <option key={tripIdOf(t)} value={tripIdOf(t)}>
                       {t.tripName || t.destinationName}
                     </option>
                   ))}
@@ -1504,8 +1605,9 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                   const cat = CAT_MAP[e.category] || CAT_MAP.other
                   const tags = Array.isArray(e.tags) ? e.tags : []
                   const expTrip = isAllTrips
-                    ? trips.find(t => String(t.id || t._id) === String(e.tripId || e.trip_id))
+                    ? trips.find(t => tripIdOf(t) === String(e.tripId || e.trip_id))
                     : null
+                  const expLocked = isAllTrips ? isLockedTrip(expTrip) : activeTripLocked
                   const expTripName = expTrip?.tripName || expTrip?.destinationName
                   return (
                     <div key={e.id || i} className="et-expense-card">
@@ -1534,8 +1636,18 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                         <span className="et-expense-amt">{fmtE(e)}</span>
                         <span className="et-expense-currency">{e.currency || 'USD'}</span>
                         <div className="et-expense-actions">
-                          <button className="et-action-btn edit" onClick={() => openEdit(e)} title="Edit">✏️</button>
-                          <button className="et-action-btn del" onClick={() => handleDelete(e)} title="Delete">🗑️</button>
+                          <button
+                            className="et-action-btn edit"
+                            onClick={() => openEdit(e)}
+                            title={expLocked ? 'Locked (completed/cancelled trip)' : 'Edit'}
+                            disabled={expLocked}
+                          >✏️</button>
+                          <button
+                            className="et-action-btn del"
+                            onClick={() => handleDelete(e)}
+                            title={expLocked ? 'Locked (completed/cancelled trip)' : 'Delete'}
+                            disabled={expLocked}
+                          >🗑️</button>
                         </div>
                       </div>
                     </div>

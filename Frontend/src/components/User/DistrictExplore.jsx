@@ -131,6 +131,50 @@ function normalizeToken(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function weatherCategory(value) {
+  const token = normalizeToken(value)
+  if (!token || token === 'unknown') return 'unknown'
+
+  if (
+    token.includes('rain') || token.includes('drizzle') || token.includes('shower') ||
+    token.includes('storm') || token.includes('thunder')
+  ) return 'rainy'
+
+  if (
+    token.includes('snow') || token.includes('ice') || token.includes('cold') ||
+    token.includes('freez')
+  ) return 'cold'
+
+  if (
+    token.includes('fog') || token.includes('mist') || token.includes('haze') ||
+    token.includes('cloud') || token.includes('overcast') || token === 'mixed' || token === 'mild'
+  ) return 'mild'
+
+  if (token === 'good' || token === 'sunny' || token === 'clear') return 'sunny'
+  return 'mild'
+}
+
+function weatherPresentation(value) {
+  const category = weatherCategory(value)
+  if (category === 'sunny') return { category, emoji: '☀️', label: 'Sunny' }
+  if (category === 'rainy') return { category, emoji: '🌧️', label: 'Rainy' }
+  if (category === 'cold') return { category, emoji: '❄️', label: 'Cold' }
+  if (category === 'mild') return { category, emoji: '🌤️', label: 'Mild' }
+  return { category, emoji: '🌀', label: 'Unknown' }
+}
+
+function normalizePreferredWeather(value) {
+  const token = normalizeToken(value)
+  if (!token || token === 'any' || token.includes('no preference') || token.includes('no pref')) return 'any'
+  return weatherCategory(token)
+}
+
+function matchesPreferredWeather(actualWeather, preferredWeather) {
+  const preferred = normalizePreferredWeather(preferredWeather)
+  if (preferred === 'any' || preferred === 'unknown') return false
+  return weatherCategory(actualWeather) === preferred
+}
+
 
 /* ─── Place Card ─── */
 function PlaceCard({ place, districtId, district, selected, onToggle, isSaved, onSave }) {
@@ -244,6 +288,7 @@ function PlaceCard({ place, districtId, district, selected, onToggle, isSaved, o
 /* ─── Main Component ─── */
 function DistrictExplore({ theme, toggleTheme }) {
   const navigate = useNavigate()
+  const deLayoutRef = useRef(null)
   const [menuOpen,       setMenuOpen]       = useState(false)
   const [district] = useState(() => {
     try { return JSON.parse(localStorage.getItem('selectedDistrict') || 'null') }
@@ -267,6 +312,9 @@ function DistrictExplore({ theme, toggleTheme }) {
   const [placesLoading, setPlacesLoading] = useState(true)
   const [toast, setToast] = useState(null)
   const [showMap, setShowMap] = useState(true)
+  const [aiRecommendations, setAiRecommendations] = useState([])
+  const [aiLoading, setAiLoading] = useState(true)
+  const [aiError, setAiError] = useState(null)
   const [userInterests] = useState(() => {
     try {
       const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
@@ -275,6 +323,51 @@ function DistrictExplore({ theme, toggleTheme }) {
       return []
     }
   })
+  const [userPreferredWeather] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
+      return u?.preferences?.preferred_weather || u?.preferred_weather || 'Any'
+    } catch {
+      return 'Any'
+    }
+  })
+
+  useEffect(() => {
+    let rafId = null
+
+    const syncRightPanelScroll = () => {
+      const layoutEl = deLayoutRef.current
+      const rightEl = dePanelRef.current
+      if (!layoutEl || !rightEl) return
+
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight
+      if (rightMax <= 0) return
+
+      const rect = layoutEl.getBoundingClientRect()
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 1
+      const travel = Math.max(layoutEl.offsetHeight - viewportH, 1)
+      const progress = Math.min(1, Math.max(0, (-rect.top) / travel))
+      rightEl.scrollTop = rightMax * progress
+    }
+
+    const onScrollOrResize = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(() => {
+        syncRightPanelScroll()
+        rafId = null
+      })
+    }
+
+    syncRightPanelScroll()
+    window.addEventListener('scroll', onScrollOrResize, { passive: true })
+    window.addEventListener('resize', onScrollOrResize)
+
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize)
+      window.removeEventListener('resize', onScrollOrResize)
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
+  }, [places.length, aiRecommendations.length, selectedPlaces.length, aiLoading, placesLoading])
 
   useEffect(() => {
     const raw = localStorage.getItem('selectedDistrict')
@@ -302,6 +395,51 @@ function DistrictExplore({ theme, toggleTheme }) {
       })
       .catch(() => {})
       .finally(() => setPlacesLoading(false))
+
+    // Fetch AI recommendations
+    const token = localStorage.getItem('token')
+    if (token && d.district_id) {
+      setAiLoading(true)
+      fetch(`${API_BASE}/places/ai-recommend?district_id=${d.district_id}&top_n=10`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(json => {
+          if (json.success && Array.isArray(json.recommendations) && json.recommendations.length > 0) {
+            setAiRecommendations(json.recommendations.map(p => {
+              // Convert numeric duration_hours back to a readable string
+              const durationHrs = Number(p.duration_hours || 0)
+              const durationStr = durationHrs >= 8 ? 'Full day'
+                : durationHrs >= 4 ? 'Half day'
+                : durationHrs > 0  ? `${durationHrs} hrs`
+                : ''
+              return {
+                id:          String(p.place_id),
+                place_id:    p.place_id,
+                name:        p.place_name || '',
+                type:        p.type || '',
+                duration:    durationStr,
+                description: p.place_description || '',
+                image:       p.image_url || '',
+                tags:        p.tag_names ? p.tag_names.split(',').map(t => t.trim()).filter(Boolean) : [],
+                rating:      Number(p.rating || 0),
+                lat:         p.lat  ? parseFloat(p.lat)  : null,
+                lng:         p.lng  ? parseFloat(p.lng)  : null,
+                aiScore:     p.weather_adjusted_score || p.final_score || 0,
+                aiReason:    p.match_reason || '',
+                aiWeather:   p.weather_label || '',
+                temperature: p.temperature || null,
+              }
+            }))
+          } else {
+            setAiError('no-data')
+          }
+        })
+        .catch(() => setAiError('unavailable'))
+        .finally(() => setAiLoading(false))
+    } else {
+      setAiLoading(false)
+    }
     // Restore previously selected places (e.g. when editing a trip)
     const savedPlaces = localStorage.getItem('selectedPlaces')
     if (savedPlaces) {
@@ -382,12 +520,16 @@ function DistrictExplore({ theme, toggleTheme }) {
 
   const togglePlace = (place) => {
     const isSelected = selectedPlaces.find(p => p.id === place.id)
+    // Enrich with coordinates from regular places list if the AI place has none
+    const enriched = (!place.lat || !place.lng)
+      ? { ...place, ...(places.find(p => p.id === place.id) ? { lat: places.find(p => p.id === place.id).lat, lng: places.find(p => p.id === place.id).lng } : {}) }
+      : place
     setSelectedPlaces(prev =>
-      isSelected ? prev.filter(p => p.id !== place.id) : [...prev, place]
+      isSelected ? prev.filter(p => p.id !== place.id) : [...prev, enriched]
     )
     // zoom map to place on select; zoom out to full view on deselect
-    if (!isSelected && place.lat && place.lng) {
-      setFocusedPlaceId(place.id)
+    if (!isSelected && enriched.lat && enriched.lng) {
+      setFocusedPlaceId(enriched.id)
     } else {
       setFocusedPlaceId(null)
     }
@@ -436,7 +578,16 @@ function DistrictExplore({ theme, toggleTheme }) {
 
   /* ── Map pins ── */
   const selectedIds = new Set(selectedPlaces.map(p => p.id))
-  const mapPins = visiblePlaces
+  // Enrich AI places with coordinates from the regular places list
+  const allPlaceById = Object.fromEntries(places.map(p => [p.id, p]))
+  const visibleIds = new Set(visiblePlaces.map(p => p.id))
+  const aiForMap = aiRecommendations
+    .filter(ai => !visibleIds.has(ai.id))
+    .map(ai => {
+      const base = allPlaceById[ai.id] || {}
+      return { ...ai, lat: base.lat ?? ai.lat, lng: base.lng ?? ai.lng }
+    })
+  const mapPins = [...visiblePlaces, ...aiForMap]
     .filter(p => p.lat && p.lng)
     .map(p => ({
       ...p,
@@ -572,7 +723,7 @@ function DistrictExplore({ theme, toggleTheme }) {
 
       {/* ── Body ── */}
       <div className="de-body">
-        <div className="de-body-grid">
+        <div className="de-body-grid" ref={deLayoutRef}>
 
         {/* ── Places ── */}
         <main className="de-main" onClick={e => e.stopPropagation()}>
@@ -646,6 +797,7 @@ function DistrictExplore({ theme, toggleTheme }) {
           </div>
 
           <div className="de-places-grid">
+            {/* ── Regular Places ── */}
             {placesLoading ? (
               [...Array(6)].map((_, i) => (
                 <div key={i} className="de-skel-card">
@@ -727,79 +879,213 @@ function DistrictExplore({ theme, toggleTheme }) {
           </div>
         </main>
 
-        {/* ── Map Panel ── */}
-        <aside className="de-map-panel" ref={dePanelRef} onClick={e => e.stopPropagation()}>
-          <div className="de-map-panel-head">
-            <span className="de-map-panel-title">
-              🗺️ Map
-              {mapPins.length > 0 && (
-                <span className="de-map-panel-count">{mapPins.length} places</span>
-              )}
-            </span>
-            {selectedPlaces.length > 0 && (
-              <span className="de-map-panel-sel">
-                <span className="de-map-dot-yellow" /> {selectedPlaces.filter(p => p.lat && p.lng).length} selected
-              </span>
-            )}
-          </div>
-          {mapPins.length === 0 && !placesLoading ? (
-            <div className="de-map-empty">
-              <span>📍</span>
-              <p>No coordinates available for these places yet.</p>
-            </div>
-          ) : (
-            <div className="de-map-wrap">
-              <MapContainer
-                center={SRI_LANKA_CENTER}
-                zoom={9}
-                className="de-map"
-                scrollWheelZoom={true}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <MapFitBounds pins={mapPins} focusPin={mapPins.find(p => p.id === focusedPlaceId) ?? null} />
-                <DeMapCapture mapRef={deMapRef} />
-                <DeResetOnMapClick pins={mapPins} />
-                {mapPins.map(pin => (
-                  <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={pin.icon}>
-                    <Popup>
-                      <div className="de-map-popup">
-                        {(pin.image || TYPE_IMAGES[pin.type]) && (
+        {/* ── Right Panel (AI + Map) ── */}
+        <aside className="de-right-panel" ref={dePanelRef} onClick={e => e.stopPropagation()}>
+
+          {/* AI Recommendations carousel */}
+          {(aiLoading || aiRecommendations.length > 0) && (
+            <div className="de-ai-section de-ai-panel">
+              <div className="de-ai-section-header">
+                <div className="de-ai-title-group">
+                  <span className="de-ai-icon">🤖</span>
+                  <div>
+                    <h3 className="de-ai-title">AI Picks for You</h3>
+                  </div>
+                </div>
+                {!aiLoading && aiRecommendations.length > 0 && (
+                  <span className="de-ai-badge">{aiRecommendations.length} picks</span>
+                )}
+              </div>
+              <p className="de-ai-desc">
+                <span className="de-ai-desc-dot" />
+                Top {aiLoading ? '10' : aiRecommendations.length} places ranked by our system — scored on your travel interests, preferred types, and live weather compatibility for <strong>{district.name}</strong>.
+              </p>
+
+              {aiLoading ? (
+                <div className="de-ai-carousel">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="de-ai-skel de-ai-skel--compact">
+                      <div className="de-ai-skel-img" />
+                      <div className="de-ai-skel-body">
+                        <div className="de-ai-skel-line w70" />
+                        <div className="de-ai-skel-line w45" />
+                        <div className="de-ai-skel-line w85" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="de-ai-carousel">
+                  {aiRecommendations.map(place => {
+                    const isSelected = !!selectedPlaces.find(p => p.id === place.id)
+                    const c = TYPE_COLOURS[place.type] || { bg: '#F3F4F6', text: '#374151' }
+                    const fallback = TYPE_IMAGES[place.type] || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&auto=format'
+                    const scorePct = Math.round((place.aiScore || 0) * 100)
+                    const weatherInfo = weatherPresentation(place.aiWeather)
+                    const weatherPrefMatch = matchesPreferredWeather(place.aiWeather, userPreferredWeather)
+                    const displayName = place.name
+                      ? place.name.replace(/\b\w/g, c => c.toUpperCase())
+                      : 'Unknown Place'
+                    return (
+                      <div
+                        key={place.id}
+                        className={`de-ai-card${isSelected ? ' de-ai-card--selected' : ''}`}
+                      >
+                        {/* Image */}
+                        <div className="de-ai-card-img-wrap" onClick={() => togglePlace(place)}>
                           <img
-                            src={pin.image || TYPE_IMAGES[pin.type]}
-                            alt={pin.name}
-                            className="de-map-popup-img"
-                            onError={e => { e.target.style.display = 'none' }}
+                            src={place.image || fallback}
+                            alt={displayName}
+                            className="de-ai-card-img"
+                            onError={e => { e.target.src = fallback }}
+                            loading="lazy"
                           />
-                        )}
-                        <div className="de-map-popup-body">
-                          <span className="de-map-popup-type">{TYPE_EMOJIS[pin.type] || '📍'} {pin.type || 'Place'}</span>
-                          <strong className="de-map-popup-name">{pin.name}</strong>
-                          {pin.duration && <span className="de-map-popup-dur">⏱ {pin.duration}</span>}
-                          <div className="de-map-popup-actions">
-                            <button
-                              className={`de-map-popup-add ${pin.isSelected ? 'added' : ''}`}
-                              onClick={() => { togglePlace(pin); }}
-                            >
-                              {pin.isSelected ? '✓ In trip' : '+ Add to trip'}
-                            </button>
-                            <button
-                              className="de-map-popup-scroll"
-                              onClick={() => scrollToCard(pin)}
-                            >
-                              View card
-                            </button>
+                          <span className="de-ai-type-badge" style={{ background: c.bg, color: c.text }}>
+                            {TYPE_EMOJIS[place.type] || '📍'} {place.type || 'Place'}
+                          </span>
+                          {place.duration && (
+                            <span className="de-ai-dur-badge">⏱ {place.duration}</span>
+                          )}
+                          {isSelected && (
+                            <div className="de-ai-selected-overlay">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" width="36" height="36"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                          )}
+                          {/* Score bar on image bottom */}
+                          <div className="de-ai-img-score-bar">
+                            <div className="de-ai-img-score-fill" style={{ width: `${scorePct}%` }} />
+                          </div>
+                          <div className="de-ai-score-pill">
+                            <span className="de-ai-score-val">{scorePct}%</span>
+                            <span className="de-ai-score-lbl"> match</span>
                           </div>
                         </div>
+
+                        {/* Body */}
+                        <div className="de-ai-card-body">
+                          <h4 className="de-ai-card-name">{displayName}</h4>
+                          {place.aiReason && (
+                            <p className="de-ai-reason">🎯 {place.aiReason}</p>
+                          )}
+                          {(place.aiWeather || place.temperature) && (
+                            <span className="de-ai-weather">
+                              {weatherInfo.emoji} {weatherInfo.label}
+                              {place.temperature ? ` · ${Math.round(place.temperature)}°C` : ''}
+                            </span>
+                          )}
+                          {place.tags.length > 0 && (
+                            <div className="de-ai-tags">
+                              {place.tags.slice(0, 3).map(t => (
+                                <span key={t} className="de-ai-tag">{t}</span>
+                              ))}
+                              {weatherPrefMatch && <span className="de-ai-tag">🌦️ Matches your weather preference</span>}
+                            </div>
+                          )}
+                          {place.tags.length === 0 && weatherPrefMatch && (
+                            <div className="de-ai-tags">
+                              <span className="de-ai-tag">🌦️ Matches your weather preference</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="de-ai-card-footer">
+                          <button
+                            className={`de-ai-add-btn${isSelected ? ' added' : ''}`}
+                            onClick={() => togglePlace(place)}
+                          >
+                            {isSelected ? (
+                              <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg> In your trip</>
+                            ) : (
+                              <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add to trip</>
+                            )}
+                          </button>
+                          {place.rating > 0 && (
+                            <span className="de-ai-rating">⭐ {place.rating.toFixed(1)}</span>
+                          )}
+                        </div>
                       </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Map panel */}
+          <div className="de-map-panel">
+            <div className="de-map-panel-head">
+              <span className="de-map-panel-title">
+                🗺️ Map
+                {mapPins.length > 0 && (
+                  <span className="de-map-panel-count">{mapPins.length} places</span>
+                )}
+              </span>
+              {selectedPlaces.length > 0 && (
+                <span className="de-map-panel-sel">
+                  <span className="de-map-dot-yellow" /> {selectedPlaces.length} selected
+                </span>
+              )}
+            </div>
+            {mapPins.length === 0 && !placesLoading ? (
+              <div className="de-map-empty">
+                <span>📍</span>
+                <p>No coordinates available for these places yet.</p>
+              </div>
+            ) : (
+              <div className="de-map-wrap">
+                <MapContainer
+                  center={SRI_LANKA_CENTER}
+                  zoom={9}
+                  className="de-map"
+                  scrollWheelZoom={true}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapFitBounds pins={mapPins} focusPin={mapPins.find(p => p.id === focusedPlaceId) ?? null} />
+                  <DeMapCapture mapRef={deMapRef} />
+                  <DeResetOnMapClick pins={mapPins} />
+                  {mapPins.map(pin => (
+                    <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={pin.icon}>
+                      <Popup>
+                        <div className="de-map-popup">
+                          {(pin.image || TYPE_IMAGES[pin.type]) && (
+                            <img
+                              src={pin.image || TYPE_IMAGES[pin.type]}
+                              alt={pin.name}
+                              className="de-map-popup-img"
+                              onError={e => { e.target.style.display = 'none' }}
+                            />
+                          )}
+                          <div className="de-map-popup-body">
+                            <span className="de-map-popup-type">{TYPE_EMOJIS[pin.type] || '📍'} {pin.type || 'Place'}</span>
+                            <strong className="de-map-popup-name">{pin.name}</strong>
+                            {pin.duration && <span className="de-map-popup-dur">⏱ {pin.duration}</span>}
+                            <div className="de-map-popup-actions">
+                              <button
+                                className={`de-map-popup-add ${pin.isSelected ? 'added' : ''}`}
+                                onClick={() => { togglePlace(pin); }}
+                              >
+                                {pin.isSelected ? '✓ In trip' : '+ Add to trip'}
+                              </button>
+                              <button
+                                className="de-map-popup-scroll"
+                                onClick={() => scrollToCard(pin)}
+                              >
+                                View card
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+              </div>
+            )}
+          </div>
         </aside>
 
         </div>{/* end de-body-grid */}

@@ -91,6 +91,25 @@ const TRAVEL_STYLES = [
   { value: 'Backpacker', emoji: '🗺️' },
 ]
 
+// Default interests suggested for each travel style
+const STYLE_INTERESTS = {
+  Adventure:   ['Mountains', 'Nature', 'Wildlife', 'Adventure'],
+  Relax:       ['Beaches', 'Relax', 'Nature', 'Photography'],
+  Culture:     ['Historical', 'Cultural', 'Religious', 'Art'],
+  Luxury:      ['Beaches', 'Food', 'Shopping', 'Photography'],
+  Budget:      ['Historical', 'Nature', 'Adventure', 'Food'],
+  Family:      ['Beaches', 'Nature', 'Wildlife', 'Food'],
+  Backpacker:  ['Mountains', 'Nature', 'Historical', 'Adventure'],
+}
+
+const WEATHER_OPTIONS = [
+  { value: 'Sunny',  emoji: '☀️',  label: 'Sunny' },
+  { value: 'Mild',   emoji: '🌤️', label: 'Mild' },
+  { value: 'Rainy',  emoji: '🌧️', label: 'Rainy' },
+  { value: 'Cold',   emoji: '❄️',  label: 'Cold' },
+  { value: 'Any',    emoji: '🌀',  label: 'Any / No Pref' },
+]
+
 // Local wrappers kept for backward compatibility (delegates to shared utils)
 function isValidSriLankanNic(value) {
   return validateNic(value).valid
@@ -118,8 +137,9 @@ function Signup({ theme, toggleTheme }) {
     gender: '',
     password: '',
     confirmPassword: '',
-    interests: [],
+    interests: STYLE_INTERESTS['Culture'],
     travelStyle: 'Culture',
+    preferredWeather: 'Any',
     currency: 'LKR',
   })
   const [avatarPreview, setAvatarPreview] = useState(null)
@@ -138,6 +158,7 @@ function Signup({ theme, toggleTheme }) {
   const [digits, setDigits]     = useState(['', '', '', '', '', ''])
   const [otpError, setOtpError] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
+  const [sendingCode, setSendingCode] = useState(false)
   const inputRefs = useRef([])
 
   const strength = getStrength(formData.password)
@@ -164,6 +185,20 @@ function Signup({ theme, toggleTheme }) {
         ? prev.interests.filter(i => i !== interest)
         : [...prev.interests, interest]
     }))
+  }
+
+  // When travel style changes, auto-select its default interests
+  // (keeps any extras the user had already picked; replaces previous style defaults)
+  const handleTravelStyleChange = (newStyle) => {
+    const defaults = STYLE_INTERESTS[newStyle] || []
+    setFormData(prev => {
+      const prevDefaults = STYLE_INTERESTS[prev.travelStyle] || []
+      // Remove interests that came from the old style (but not manually added ones)
+      const withoutOldDefaults = prev.interests.filter(i => !prevDefaults.includes(i))
+      // Merge in the new style defaults
+      const merged = [...new Set([...withoutOldDefaults, ...defaults])]
+      return { ...prev, travelStyle: newStyle, interests: merged }
+    })
   }
 
   /* ── Per-field blur validation ── */
@@ -252,7 +287,12 @@ function Signup({ theme, toggleTheme }) {
 
     setFieldErrors({})
     setError('')
-    setLoading(true)
+    // Navigate to OTP step immediately — send code in background
+    setDigits(['', '', '', '', '', ''])
+    setOtpError('')
+    setDirection('forward')
+    setStep(2)
+    setSendingCode(true)
     try {
       const res = await fetch(`${API_BASE}/users/send-verification-code`, {
         method: 'POST',
@@ -261,14 +301,13 @@ function Signup({ theme, toggleTheme }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to send verification code')
-      setDigits(['', '', '', '', '', ''])
-      setOtpError('')
-      setDirection('forward')
-      setStep(2)
     } catch (err) {
+      // Go back to step 1 and show error
+      setDirection('back')
+      setStep(1)
       setError(err.message)
     } finally {
-      setLoading(false)
+      setSendingCode(false)
     }
   }
 
@@ -362,6 +401,7 @@ function Signup({ theme, toggleTheme }) {
           gender: formData.gender || undefined,
           interests: formData.interests,
           travelStyle: formData.travelStyle,
+          preferred_weather: formData.preferredWeather,
           currency: formData.currency,
           avatar: avatarBase64 || undefined
         })
@@ -392,6 +432,7 @@ function Signup({ theme, toggleTheme }) {
         joinDate: new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
         preferences: {
           ...(u.preferences || {}),
+          preferred_weather: formData.preferredWeather,
           currency: formData.currency,
           emailNotifications: true,
           smsNotifications: false,
@@ -670,9 +711,7 @@ function Signup({ theme, toggleTheme }) {
                 </div>
               </div>
 
-              <button type="button" className={`sg-btn-primary ${loading ? 'fp-btn-loading' : ''}`} onClick={goNext} disabled={loading}>
-                {loading ? <><span className="fp-spinner" /> Sending Code…</> : <>Continue <IconArrowRight /></>}
-              </button>
+              <button type="button" className="sg-btn-primary" onClick={goNext}>Continue <IconArrowRight /></button>
 
               {error && <div className="sg-error-msg" role="alert">{error}</div>}
 
@@ -735,10 +774,12 @@ function Signup({ theme, toggleTheme }) {
                 </div>
               </div>
 
+              {sendingCode && <p className="fp-error-text" style={{ color: 'var(--primary, #6366f1)', marginBottom: '8px' }}><span className="fp-spinner" style={{ marginRight: 6 }} />Sending code to {formData.email}…</p>}
+
               {otpError && <p className="fp-error-text" style={{ marginBottom: '8px' }}>{otpError}</p>}
 
-              <button type="submit" className={`sg-btn-primary ${otpLoading ? 'fp-btn-loading' : ''}`} disabled={otpLoading}>
-                {otpLoading ? <><span className="fp-spinner" /> Verifying…</> : <>Verify Email <IconArrowRight /></>}
+              <button type="submit" className={`sg-btn-primary ${(otpLoading || sendingCode) ? 'fp-btn-loading' : ''}`} disabled={otpLoading || sendingCode}>
+                {otpLoading ? <><span className="fp-spinner" /> Verifying…</> : sendingCode ? <><span className="fp-spinner" /> Sending Code…</> : <>Verify Email <IconArrowRight /></>}
               </button>
 
               <button type="button" className="sg-btn-secondary" onClick={goBack}>
@@ -759,7 +800,8 @@ function Signup({ theme, toggleTheme }) {
                 {TRAVEL_STYLES.map(({ value, emoji }) => (
                   <label key={value} className="sg-style-card">
                     <input type="radio" name="travelStyle" value={value}
-                      checked={formData.travelStyle === value} onChange={handleChange} />
+                      checked={formData.travelStyle === value}
+                      onChange={() => handleTravelStyleChange(value)} />
                     <div className="sg-style-face">
                       <span className="sg-style-emoji">{emoji}</span>
                       <span className="sg-style-name">{value}</span>
@@ -780,6 +822,20 @@ function Signup({ theme, toggleTheme }) {
                     <input type="checkbox" checked={formData.interests.includes(interest)}
                       onChange={() => toggleInterest(interest)} />
                     <span className="sg-chip-label">{interest}</span>
+                  </label>
+                ))}
+              </div>
+
+              <p className="sg-section-label">Preferred Weather</p>
+              <div className="sg-style-grid">
+                {WEATHER_OPTIONS.map(({ value, emoji, label }) => (
+                  <label key={value} className="sg-style-card">
+                    <input type="radio" name="preferredWeather" value={value}
+                      checked={formData.preferredWeather === value} onChange={handleChange} />
+                    <div className="sg-style-face">
+                      <span className="sg-style-emoji">{emoji}</span>
+                      <span className="sg-style-name">{label}</span>
+                    </div>
                   </label>
                 ))}
               </div>

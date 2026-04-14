@@ -243,6 +243,13 @@
   display: flex;
   flex-direction: column;
 }
+.pt-card-clickable {
+  cursor: pointer;
+}
+.pt-card-clickable:focus-visible {
+  outline: 3px solid rgba(14,124,95,0.45);
+  outline-offset: 3px;
+}
 .pt-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 12px 40px rgba(0,0,0,0.13);

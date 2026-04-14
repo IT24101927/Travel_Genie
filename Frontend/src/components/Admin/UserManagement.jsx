@@ -13,6 +13,7 @@ function UserManagement() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [formErrors, setFormErrors] = useState({})
   const [toastMsg, setToastMsg] = useState(null)
 
   const [showModal, setShowModal] = useState(false)
@@ -29,7 +30,7 @@ function UserManagement() {
     name: '', email: '', password: '', phone: '',
     role: 'user', isActive: true, gender: '',
     dateOfBirth: '', nic: '', currency: 'LKR',
-    interests: [], travelStyle: 'Culture'
+    interests: [], travelStyle: 'Culture', preferredWeather: 'Any'
   })
 
   const interestOptions = [
@@ -39,6 +40,16 @@ function UserManagement() {
   ]
 
   const travelStyleOptions = ['Adventure', 'Relax', 'Culture', 'Luxury', 'Budget', 'Family', 'Backpacker']
+
+  const STYLE_INTERESTS = {
+    Adventure:   ['Mountains', 'Nature', 'Wildlife', 'Adventure'],
+    Relax:       ['Beaches', 'Relax', 'Nature', 'Photography'],
+    Culture:     ['Historical', 'Cultural', 'Religious', 'Art'],
+    Luxury:      ['Beaches', 'Food', 'Shopping', 'Photography'],
+    Budget:      ['Historical', 'Nature', 'Adventure', 'Food'],
+    Family:      ['Beaches', 'Nature', 'Wildlife', 'Food'],
+    Backpacker:  ['Mountains', 'Nature', 'Historical', 'Adventure'],
+  }
 
   const [matchedDests, setMatchedDests] = useState([])
   const [matchedCats, setMatchedCats] = useState([])
@@ -63,7 +74,8 @@ function UserManagement() {
   const handleAdd = () => {
     setModalMode('add')
     setSelectedUser(null)
-    setFormData({ name: '', email: '', password: '', phone: '', role: 'user', isActive: true, gender: '', dateOfBirth: '', nic: '', currency: 'LKR', interests: [], travelStyle: 'Culture' })
+    setFormData({ name: '', email: '', password: '', phone: '', role: 'user', isActive: true, gender: '', dateOfBirth: '', nic: '', currency: 'LKR', interests: STYLE_INTERESTS['Culture'], travelStyle: 'Culture', preferredWeather: 'Any' })
+    setFormErrors({})
     setShowModal(true)
   }
 
@@ -83,8 +95,10 @@ function UserManagement() {
       nic: user.nic || '',
       currency: user.address?.prefs?.currency || 'LKR',
       interests: user.interests || [],
-      travelStyle: user.travelStyle || 'Culture'
+      travelStyle: user.travelStyle || 'Culture',
+      preferredWeather: user.address?.prefs?.preferred_weather || user.preferred_weather || 'Any'
     })
+    setFormErrors({})
     setShowModal(true)
   }
 
@@ -113,26 +127,29 @@ function UserManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault(); setSaving(true)
     // --- Validations ---
+    const errs = {}
     const nameCheck = validateName(formData.name)
-    if (!nameCheck.valid) { setError(nameCheck.message); setSaving(false); return }
+    if (!nameCheck.valid) errs.name = nameCheck.message
     const emailCheck = validateEmail(formData.email)
-    if (!emailCheck.valid) { setError(emailCheck.message); setSaving(false); return }
-    if (modalMode === 'add') {
+    if (!emailCheck.valid) errs.email = emailCheck.message
+    if (modalMode === 'add' || formData.password) {
       const pwCheck = validatePassword(formData.password)
-      if (!pwCheck.valid) { setError(pwCheck.message); setSaving(false); return }
+      if (!pwCheck.valid) errs.password = pwCheck.message
     }
     if (formData.phone) {
       const phoneCheck = validatePhone(formData.phone)
-      if (!phoneCheck.valid) { setError(phoneCheck.message); setSaving(false); return }
+      if (!phoneCheck.valid) errs.phone = phoneCheck.message
     }
     if (formData.nic) {
       const nicCheck = validateNic(formData.nic)
-      if (!nicCheck.valid) { setError(nicCheck.message); setSaving(false); return }
+      if (!nicCheck.valid) errs.nic = nicCheck.message
     }
     if (formData.dateOfBirth) {
       const dobCheck = validateDateOfBirth(formData.dateOfBirth)
-      if (!dobCheck.valid) { setError(dobCheck.message); setSaving(false); return }
+      if (!dobCheck.valid) errs.dateOfBirth = dobCheck.message
     }
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); setSaving(false); return }
+    setFormErrors({})
     // --- End Validations ---
     try {
       if (modalMode === 'add') {
@@ -144,6 +161,7 @@ function UserManagement() {
           nic: formData.nic || undefined,
           currency: formData.currency,
           travelStyle: formData.travelStyle, interests: formData.interests,
+          preferred_weather: formData.preferredWeather,
         }
         const res = await fetch(`${API}/users`, { method: 'POST', headers: authH(), body: JSON.stringify(body) })
         const data = await res.json()
@@ -159,7 +177,7 @@ function UserManagement() {
             ...(selectedUser.address || {}),
             travelStyle: formData.travelStyle,
             interests: formData.interests,
-            prefs: { ...(selectedUser.address?.prefs || {}), currency: formData.currency },
+            prefs: { ...(selectedUser.address?.prefs || {}), currency: formData.currency, preferred_weather: formData.preferredWeather },
           },
         }
         if (formData.password) body.password = formData.password
@@ -190,6 +208,16 @@ function UserManagement() {
       if (data.success) setUsers(u => u.map(x => x.id === id ? { ...x, isActive } : x))
       else setError(data.message)
     } catch { setError('Network error') }
+  }
+
+  // Handle Travel Style Change (auto-fills interests)
+  const handleTravelStyleChange = (newStyle) => {
+    setFormData(prev => {
+      const prevDefaults = STYLE_INTERESTS[prev.travelStyle] || []
+      const withoutOld = prev.interests.filter(i => !prevDefaults.includes(i))
+      const merged = [...new Set([...withoutOld, ...(STYLE_INTERESTS[newStyle] || [])])]
+      return { ...prev, travelStyle: newStyle, interests: merged }
+    })
   }
 
   // Handle Interest Toggle
@@ -399,10 +427,11 @@ function UserManagement() {
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, name: e.target.value}); setFormErrors(prev => ({...prev, name: ''})) }}
                       required
                       placeholder="e.g., John Doe"
                     />
+                    {formErrors.name && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.name}</p>}
                   </div>
 
                   <div className="form-group">
@@ -410,10 +439,11 @@ function UserManagement() {
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, email: e.target.value}); setFormErrors(prev => ({...prev, email: ''})) }}
                       required
                       placeholder="e.g., john@example.com"
                     />
+                    {formErrors.email && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.email}</p>}
                   </div>
                 </div>
 
@@ -423,10 +453,11 @@ function UserManagement() {
                     <input
                       type="password"
                       value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, password: e.target.value}); setFormErrors(prev => ({...prev, password: ''})) }}
                       required={modalMode === 'add'}
-                      placeholder="Min 6 characters"
+                      placeholder="Min 8 characters"
                     />
+                    {formErrors.password && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.password}</p>}
                   </div>
 
                   <div className="form-group">
@@ -434,11 +465,12 @@ function UserManagement() {
                     <input
                       type="tel"
                       value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: normalizePhone(e.target.value)})}
+                      onChange={(e) => { setFormData({...formData, phone: normalizePhone(e.target.value)}); setFormErrors(prev => ({...prev, phone: ''})) }}
                       placeholder="e.g., 07XXXXXXXX"
                       inputMode="numeric"
                       maxLength={10}
                     />
+                    {formErrors.phone && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.phone}</p>}
                   </div>
                 </div>
 
@@ -485,8 +517,18 @@ function UserManagement() {
                     <input
                       type="date"
                       value={formData.dateOfBirth}
-                      onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setFormData({...formData, dateOfBirth: v})
+                        if (v) {
+                          const r = validateDateOfBirth(v)
+                          setFormErrors(prev => ({...prev, dateOfBirth: r.valid ? '' : r.message}))
+                        } else {
+                          setFormErrors(prev => ({...prev, dateOfBirth: ''}))
+                        }
+                      }}
                     />
+                    {formErrors.dateOfBirth && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.dateOfBirth}</p>}
                   </div>
 
                   <div className="form-group">
@@ -494,9 +536,10 @@ function UserManagement() {
                     <input
                       type="text"
                       value={formData.nic}
-                      onChange={(e) => setFormData({...formData, nic: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, nic: e.target.value}); setFormErrors(prev => ({...prev, nic: ''})) }}
                       placeholder="e.g. 991234567V"
                     />
+                    {formErrors.nic && <p style={{ color: '#e53e3e', fontSize: '0.78rem', marginTop: '4px' }}>⚠ {formErrors.nic}</p>}
                   </div>
 
                   <div className="form-group">
@@ -526,7 +569,7 @@ function UserManagement() {
                           name="travelStyle"
                           value={style}
                           checked={formData.travelStyle === style}
-                          onChange={(e) => setFormData({...formData, travelStyle: e.target.value})}
+                          onChange={() => handleTravelStyleChange(style)}
                         />
                         <span className="radio-label">
                           {style === 'Adventure' ? '🏔️' : 
@@ -556,6 +599,20 @@ function UserManagement() {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Preferred Weather</label>
+                  <select
+                    value={formData.preferredWeather}
+                    onChange={(e) => setFormData({...formData, preferredWeather: e.target.value})}
+                  >
+                    <option value="Sunny">☀️ Sunny</option>
+                    <option value="Mild">🌤️ Mild</option>
+                    <option value="Rainy">🌧️ Rainy</option>
+                    <option value="Cold">❄️ Cold</option>
+                    <option value="Any">🌀 Any / No Preference</option>
+                  </select>
                 </div>
               </div>
 
@@ -636,6 +693,11 @@ function UserManagement() {
                 <div className="detail-group">
                   <label>Travel Style:</label>
                   <p>{selectedUser.travelStyle || '—'}</p>
+                </div>
+
+                <div className="detail-group">
+                  <label>Preferred Weather:</label>
+                  <p>{selectedUser.address?.prefs?.preferred_weather || selectedUser.preferred_weather || '—'}</p>
                 </div>
 
                 <div className="detail-group">

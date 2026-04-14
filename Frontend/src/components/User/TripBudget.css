@@ -153,7 +153,14 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  position: sticky;
+  top: 84px;
+  max-height: calc(100vh - 104px);
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: none;
 }
+.tb-col-right::-webkit-scrollbar { display: none; }
 .tb-hotel-budget-section {
   height: 100%;
 }
@@ -161,6 +168,11 @@
 @media (max-width: 960px) {
   .tb-layout {
     grid-template-columns: 1fr;
+  }
+  .tb-col-right {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
@@ -680,6 +692,312 @@
 }
 
 /* ════════════════════════════════
+   AI BUDGET RECOMMENDATION
+   ════════════════════════════════ */
+.tb-ai-section {
+  border: 1px solid #d1fae5;
+  background: linear-gradient(180deg, #ffffff 0%, #f6fffa 100%);
+}
+.tb-ai-loading,
+.tb-ai-muted,
+.tb-ai-error {
+  margin: 0;
+  font-size: 0.9rem;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.tb-ai-loading,
+.tb-ai-muted {
+  color: #0f766e;
+  background: #ecfeff;
+  border: 1px solid #bae6fd;
+}
+.tb-ai-error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.tb-ai-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+.tb-ai-card {
+  border: 1px solid #c7f9cc;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+}
+.tb-ai-label {
+  margin: 0 0 6px;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.tb-ai-card h3 {
+  margin: 0;
+  color: #14532d;
+  font-size: 1.05rem;
+}
+.tb-ai-status {
+  text-transform: capitalize;
+}
+.tb-ai-rec-list {
+  display: grid;
+  gap: 10px;
+}
+.tb-ai-rec-item {
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f0fdf4;
+}
+.tb-ai-rec-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  color: #14532d;
+}
+.tb-ai-rec-item p {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.tb-ai-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.tb-ai-guide-item {
+  border: 1px solid #a7f3d0;
+  background: #f0fdf9;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+.tb-ai-guide-step {
+  font-size: 0.72rem;
+  color: #0f766e;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tb-ai-guide-item strong {
+  color: #14532d;
+  font-size: 0.9rem;
+}
+.tb-ai-guide-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.tb-ai-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.tb-ai-legend-item {
+  border: 1px solid #bbf7d0;
+  background: #f8fffb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+.tb-ai-legend-item span {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.tb-ai-legend-item strong {
+  color: #14532d;
+  font-size: 0.96rem;
+}
+
+.tb-ai-explain {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.tb-ai-explain h4 {
+  margin: 0;
+  color: #14532d;
+  font-size: 0.92rem;
+}
+.tb-ai-explain-row {
+  display: grid;
+  gap: 3px;
+}
+.tb-ai-explain-row span {
+  color: #475569;
+  font-size: 0.8rem;
+}
+.tb-ai-explain-row strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+  word-break: break-word;
+}
+.tb-ai-good { color: #166534 !important; }
+.tb-ai-bad { color: #b91c1c !important; }
+
+.tb-ai-split {
+  border: 1px solid #c7f9cc;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+}
+.tb-ai-split h3 {
+  margin: 0;
+  color: #14532d;
+  font-size: 1rem;
+}
+.tb-ai-split > p {
+  margin: 6px 0 10px;
+  color: #475569;
+  font-size: 0.86rem;
+}
+.tb-ai-split-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.tb-ai-split-item {
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fff9;
+  display: grid;
+  gap: 4px;
+}
+.tb-ai-split-item--remaining {
+  background: #f0fdf4;
+}
+.tb-ai-split-head {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 700;
+}
+.tb-ai-split-item strong {
+  color: #14532d;
+  font-size: 0.98rem;
+}
+.tb-ai-split-item span {
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.tb-ai-split-item small {
+  color: #475569;
+  font-size: 0.76rem;
+}
+
+.tb-ai-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tb-ai-action-btn {
+  border: 1px solid #86efac;
+  background: #ffffff;
+  color: #166534;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.tb-ai-action-btn:hover:not(:disabled) {
+  border-color: #16a34a;
+  color: #14532d;
+}
+.tb-ai-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tb-ai-action-btn-primary {
+  background: #0e7c5f;
+  border-color: #0e7c5f;
+  color: #ffffff;
+}
+.tb-ai-action-btn-primary:hover:not(:disabled) {
+  background: #0b6a51;
+  border-color: #0b6a51;
+  color: #ffffff;
+}
+
+.tb-ai-adjust-grid {
+  display: grid;
+  gap: 10px;
+}
+.tb-ai-sum-check {
+  border-radius: 12px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.tb-ai-sum-check span {
+  color: #475569;
+  font-weight: 600;
+}
+.tb-ai-sum-check strong {
+  color: #14532d;
+}
+.tb-ai-sum-check.ok {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+}
+.tb-ai-sum-check.warn {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+.tb-ai-sum-check.warn strong {
+  color: #b91c1c;
+}
+.tb-ai-adjust-item {
+  border: 1px solid #bbf7d0;
+  background: #f8fff9;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+.tb-ai-adjust-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #14532d;
+}
+.tb-ai-adjust-head strong {
+  font-size: 0.92rem;
+}
+.tb-ai-adjust-item input[type='range'] {
+  width: 100%;
+  accent-color: #0e7c5f;
+}
+.tb-ai-adjust-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+/* ════════════════════════════════
    CTA BAR
    ════════════════════════════════ */
 .tb-cta-bar {
@@ -857,6 +1175,141 @@
 }
 [data-theme='dark'] .tb-selected-total-title {
   color: #86EFAC;
+}
+[data-theme='dark'] .tb-ai-section {
+  border-color: #14532d;
+  background: linear-gradient(180deg, #161b22 0%, #12201a 100%);
+}
+[data-theme='dark'] .tb-ai-loading,
+[data-theme='dark'] .tb-ai-muted {
+  background: rgba(14, 116, 144, 0.2);
+  border-color: rgba(186, 230, 253, 0.3);
+  color: #7dd3fc;
+}
+[data-theme='dark'] .tb-ai-error {
+  background: rgba(185, 28, 28, 0.2);
+  border-color: rgba(254, 202, 202, 0.25);
+  color: #fecaca;
+}
+[data-theme='dark'] .tb-ai-card {
+  background: #1c2430;
+  border-color: #2f3b2f;
+}
+[data-theme='dark'] .tb-ai-label {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-card h3,
+[data-theme='dark'] .tb-ai-rec-head {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-rec-item {
+  background: rgba(22, 101, 52, 0.25);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-rec-item p {
+  color: #cbd5e1;
+}
+[data-theme='dark'] .tb-ai-guide-item {
+  background: rgba(14, 116, 144, 0.16);
+  border-color: rgba(125, 211, 252, 0.25);
+}
+[data-theme='dark'] .tb-ai-guide-step {
+  color: #67e8f9;
+}
+[data-theme='dark'] .tb-ai-guide-item strong {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-guide-item p {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-legend-item {
+  background: rgba(22, 101, 52, 0.18);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-legend-item span {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-legend-item strong {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-explain {
+  background: rgba(22, 101, 52, 0.22);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-explain h4,
+[data-theme='dark'] .tb-ai-good {
+  color: #bbf7d0 !important;
+}
+[data-theme='dark'] .tb-ai-explain-row span {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-explain-row strong {
+  color: #e2e8f0;
+}
+[data-theme='dark'] .tb-ai-bad {
+  color: #fca5a5 !important;
+}
+[data-theme='dark'] .tb-ai-split {
+  background: #1c2430;
+  border-color: #2f3b2f;
+}
+[data-theme='dark'] .tb-ai-split h3 {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-split > p,
+[data-theme='dark'] .tb-ai-split-item small {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-split-item {
+  background: rgba(22, 101, 52, 0.16);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-split-item strong {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-split-item span {
+  color: #67e8f9;
+}
+[data-theme='dark'] .tb-ai-action-btn {
+  background: #1f2a22;
+  border-color: #1f6b43;
+  color: #86efac;
+}
+[data-theme='dark'] .tb-ai-action-btn:hover:not(:disabled) {
+  border-color: #3be8a0;
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-action-btn-primary {
+  background: #0e7c5f;
+  border-color: #0e7c5f;
+  color: #ffffff;
+}
+[data-theme='dark'] .tb-ai-adjust-item {
+  background: rgba(22, 101, 52, 0.16);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-adjust-head {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-adjust-meta {
+  color: #94a3b8;
+}
+[data-theme='dark'] .tb-ai-sum-check span {
+  color: #cbd5e1;
+}
+[data-theme='dark'] .tb-ai-sum-check strong {
+  color: #bbf7d0;
+}
+[data-theme='dark'] .tb-ai-sum-check.ok {
+  background: rgba(22, 101, 52, 0.2);
+  border-color: rgba(187, 247, 208, 0.25);
+}
+[data-theme='dark'] .tb-ai-sum-check.warn {
+  background: rgba(185, 28, 28, 0.2);
+  border-color: rgba(254, 202, 202, 0.25);
+}
+[data-theme='dark'] .tb-ai-sum-check.warn strong {
+  color: #fecaca;
 }
 [data-theme='dark'] .tb-selected-total-value {
   color: #3BE8A0;
@@ -1285,6 +1738,19 @@
   color: #9CA3AF;
   font-size: 10px;
 }
+.tb-hg-weather {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0F766E;
+  background: #ECFEFF;
+  border: 1px solid #A5F3FC;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: 2px;
+}
 .tb-hg-pick-btn {
   margin-top: 4px;
   background: none;
@@ -1308,6 +1774,73 @@
 }
 .tb-hg-pick-btn.full:hover { background: #F3F4F6; color: #9CA3AF; }
 
+/* ════════════════════════════════
+   RECOMMENDATION SECTION (TripBudget)
+   ════════════════════════════════ */
+
+.tb-hotel-reco-section {
+  border: 2px solid #d1fae5;
+  border-radius: 14px;
+  padding: 16px 16px 20px;
+  background: linear-gradient(135deg, rgba(110,231,183,0.06) 0%, rgba(16,185,129,0.03) 100%);
+  margin-bottom: 20px;
+}
+
+.tb-hotel-reco-coming-soon {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: #d1fae5;
+  border-radius: 20px;
+  padding: 2px 10px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.tb-hotel-reco-sub {
+  font-size: 12.5px;
+  color: var(--text-muted, #6B7280);
+  margin: 2px 0 12px;
+}
+
+/* Recommended badge overlaid on card image */
+.tb-hg-reco-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #065f46;
+  background: rgba(209,250,229,0.95);
+  border-radius: 20px;
+  padding: 3px 9px;
+  backdrop-filter: blur(4px);
+  z-index: 2;
+  white-space: nowrap;
+}
+
+/* Small tag chips inside recommended card */
+.tb-hg-reco-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.tb-hg-reco-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+/* Highlighted recommended card border */
+.tb-hg-card--reco {
+  border: 1.5px solid #a7f3d0;
+}
+
 /* dark mode */
 [data-theme='dark'] .tb-hotel-grid-section { border-top-color: #14532D; }
 [data-theme='dark'] .tb-hotel-grid-title   { color: #D1FAE5; }
@@ -1325,6 +1858,7 @@
 [data-theme='dark'] .tb-hg-card.selected  { border-color: #3BE8A0; box-shadow: 0 0 0 3px rgba(59,232,160,0.18); }
 [data-theme='dark'] .tb-hg-name           { color: #E6EDF3; }
 [data-theme='dark'] .tb-hg-price          { color: #3BE8A0; }
+[data-theme='dark'] .tb-hg-weather        { color: #67E8F9; background: rgba(8, 47, 73, 0.45); border-color: rgba(103, 232, 249, 0.35); }
 [data-theme='dark'] .tb-hg-pick-btn       { border-color: #3BE8A0; color: #3BE8A0; }
 [data-theme='dark'] .tb-hg-pick-btn:hover { background: #3BE8A0; color: #000; }
 [data-theme='dark'] .tb-hg-pick-btn.full       { background: #21262D; border-color: #30363D; color: #6B7280; }

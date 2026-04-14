@@ -63,6 +63,10 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
 SMTP_PASS=your_app_password
+
+# AI service proxy target (Flask service)
+AI_HOST=localhost
+AI_SERVICE_PORT=5001
 ```
 
 ### 3 — Start the server
@@ -73,6 +77,14 @@ npm start       # Production
 ```
 
 > The server syncs all Sequelize models to the database on startup. No manual migration needed for a fresh database.
+
+### AI service dependency
+
+The backend proxies recommendation requests to the Python AI service in `Aiml/`.
+
+- Start backend: `http://localhost:5000`
+- Start AI service: `http://localhost:5001`
+- Health source used by monitor endpoints: `GET /health` on AI service
 
 ---
 
@@ -115,6 +127,35 @@ All endpoints are prefixed with `/api`.
 > 🔓 **Public** — no token needed  
 > 🔐 **Protected** — requires `Authorization: Bearer <token>`  
 > 🛡️ **Admin** — requires `role: admin`
+
+---
+
+### 🤖 AI Proxy + Monitor Endpoints
+
+These endpoints are mounted from:
+
+- `modules/expenseManagement/routes/aiBudgetRoutes.js`
+- `modules/hotelManagement/routes/aiHotelRoutes.js`
+- `modules/placeManagement/routes/aiPlaceRoutes.js`
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| `GET` | `/budget/ai-recommend` | 🔐 | Budget recommendation proxy |
+| `POST` | `/budget/ai-monitor-event` | 🔐 | Budget AI usage/fallback telemetry event |
+| `GET` | `/budget/ai-monitor` | 🛡️ | Budget AI metrics snapshot |
+| `GET` | `/budget/ai-service-health` | 🛡️ | Budget AI health snapshot |
+| `GET` | `/hotels/ai-recommend` | 🔐 | Hotel recommendation proxy |
+| `GET` | `/hotels/ai-monitor` | 🛡️ | Hotel AI metrics snapshot |
+| `GET` | `/hotels/ai-service-health` | 🛡️ | Hotel AI health snapshot |
+| `GET` | `/places/ai-recommend` | 🔐 | Place recommendation proxy |
+| `GET` | `/places/ai-monitor` | 🛡️ | Place AI metrics snapshot |
+| `GET` | `/places/ai-service-health` | 🛡️ | Place AI health snapshot |
+
+Monitoring behavior:
+
+- `availabilityRate` is computed as `successfulResponses / totalRequests`
+- If there are no requests yet, `availabilityRate` is `0` (not `100`)
+- AI failures are captured separately as unavailable, timeout, and invalid-response counters
 
 ---
 

@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { clearUserData } from '../../utils/clearUserData'
 import { API_BASE } from '../../config/api'
 import { Link, useNavigate } from 'react-router-dom'
+import { DAILY_SPLIT_DEFAULT, normalizeDailySplit, deriveAiFallbackSplit, validateStartToBudgetHandoff } from '../../utils/budgetPlanning'
 import './TripBudget.css'
 
 function mapHotel(h) {
   return {
     _id:        String(h.hotel_id || h.place_id),
+    hotel_id:   h.hotel_id || null,
+    place_id:   h.place_id || null,
     name:       h.place?.name        || h.name       || '',
     category:   h.hotel_type         || h.category   || 'hotel',
     starRating: h.star_class         || h.starRating  || 0,
@@ -19,13 +22,44 @@ function mapHotel(h) {
       ...(h.place?.images || []).map(img => ({ url: img.image_url || img.url || '' })),
     ],
     rating:     h.rating || 0,
+    weather_label: h.weather_label || '',
+    temperature: h.temperature ?? null,
   }
+}
+
+function weatherPresentation(value) {
+  const token = String(value || '').trim().toLowerCase()
+  if (!token) return { emoji: '🌀', label: 'Unknown' }
+  if (token.includes('rain') || token.includes('storm') || token.includes('thunder')) return { emoji: '🌧️', label: 'Rainy' }
+  if (token.includes('snow') || token.includes('ice') || token.includes('cold')) return { emoji: '❄️', label: 'Cold' }
+  if (token.includes('fog') || token.includes('mist') || token.includes('cloud') || token.includes('mixed')) return { emoji: '🌤️', label: 'Mild' }
+  if (token.includes('good') || token.includes('sun') || token.includes('clear')) return { emoji: '☀️', label: 'Sunny' }
+  return { emoji: '🌀', label: 'Unknown' }
 }
 
 // Hotel prices are stored in LKR. LKR_RATES = units of target currency per 1 LKR
 const LKR_RATES = { LKR: 1, USD: 0.0033, EUR: 0.0031 }
+const CURRENCY_DECIMALS = { LKR: 0, USD: 0, EUR: 0 }
+
+function getCurrencyDecimals(code) {
+  return Object.prototype.hasOwnProperty.call(CURRENCY_DECIMALS, code) ? CURRENCY_DECIMALS[code] : 2
+}
+
+function roundByCurrency(value, code) {
+  const decimals = getCurrencyDecimals(code)
+  const factor = 10 ** decimals
+  return Math.round((Number(value) || 0) * factor) / factor
+}
+
 function convertFromLKR(lkr, code) {
-  return Math.round((lkr || 0) * (LKR_RATES[code] || 1))
+  return roundByCurrency((lkr || 0) * (LKR_RATES[code] || 1), code)
+}
+
+function convertToLKR(amount, fromCode) {
+  const value = Number(amount)
+  if (!Number.isFinite(value) || value <= 0) return 0
+  const fromRate = LKR_RATES[fromCode] || 1
+  return value / fromRate
 }
 
 function convertCurrencyAmount(amount, fromCode, toCode) {
@@ -34,7 +68,7 @@ function convertCurrencyAmount(amount, fromCode, toCode) {
   const fromRate = LKR_RATES[fromCode] || 1
   const toRate = LKR_RATES[toCode] || 1
   const inLkr = value / fromRate
-  return Math.max(0, Math.round(inLkr * toRate))
+  return Math.max(0, roundByCurrency(inLkr * toRate, toCode))
 }
 
 function diffDaysLocal(startStr, endStr) {
@@ -68,16 +102,31 @@ function getQuickTotals(code) {
   return QUICK_TOTALS_USD
 }
 
+function formatMoney(value, symbol) {
+  const num = Number(value || 0)
+  const currencyCode = symbol === '$' ? 'USD' : symbol === '€' ? 'EUR' : 'LKR'
+  const decimals = getCurrencyDecimals(currencyCode)
+  return `${symbol}${num.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })}`
+}
+
 export default function TripBudget({ theme, toggleTheme }) {
   const navigate = useNavigate()
+  const layoutRef = useRef(null)
+  const rightColRef = useRef(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [district] = useState(() => {
     try { return JSON.parse(localStorage.getItem('selectedDistrict') || 'null') }
     catch { return null }
   })
   const [prefs,       setPrefs]       = useState(null)
+  const [selectedPlaces, setSelectedPlaces] = useState([])
   const [selectedHotelsList, setSelectedHotelsList] = useState([])
   const [districtHotels, setDistrictHotels] = useState([])
+  const [recommendedHotels, setRecommendedHotels] = useState([])
+  const [aiWeatherById, setAiWeatherById] = useState({})
 
   // Budget state
   const [currency,     setCurrency]     = useState('LKR')
@@ -89,6 +138,57 @@ export default function TripBudget({ theme, toggleTheme }) {
   const [isHotelFocused, setIsHotelFocused] = useState(false)
   const [tripDays,     setTripDays]     = useState('')
   const [showMoreHotels, setShowMoreHotels] = useState(false)
+  const [budgetAi, setBudgetAi] = useState(null)
+  const [budgetAiLoading, setBudgetAiLoading] = useState(false)
+  const [budgetAiError, setBudgetAiError] = useState('')
+  const [dailySplit, setDailySplit] = useState(DAILY_SPLIT_DEFAULT)
+  const [dailySplitTouched, setDailySplitTouched] = useState(false)
+  const [splitSource, setSplitSource] = useState('default')
+  const lastAvailabilityRef = useRef('unknown')
+  const canonicalBudgetRef = useRef({ totalLkr: null, hotelLkr: null })
+
+  useEffect(() => {
+    localStorage.setItem('et_displayCurrency', currency)
+  }, [currency])
+
+  const setCanonicalAmount = (kind, amount, code = currency) => {
+    const numeric = Number(amount)
+    const key = kind === 'total' ? 'totalLkr' : 'hotelLkr'
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      canonicalBudgetRef.current[key] = null
+      return
+    }
+    canonicalBudgetRef.current[key] = convertToLKR(numeric, code)
+  }
+
+  const trackBudgetMetric = (name) => {
+    try {
+      const current = JSON.parse(localStorage.getItem('budgetAiMetrics') || '{}')
+      current[name] = (Number(current[name]) || 0) + 1
+      current.updatedAt = new Date().toISOString()
+      localStorage.setItem('budgetAiMetrics', JSON.stringify(current))
+    } catch {
+      // Ignore storage failures in telemetry tracking.
+    }
+  }
+
+  const reportBudgetAiEvent = async (eventName) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    try {
+      await fetch(`${API_BASE}/budget/ai-monitor-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ event: eventName }),
+      })
+    } catch {
+      // Keep UX unaffected when monitor reporting fails.
+    }
+  }
 
   useEffect(() => {
     const raw = localStorage.getItem('selectedDistrict')
@@ -110,6 +210,14 @@ export default function TripBudget({ theme, toggleTheme }) {
     const prefsData = prefsRaw ? (() => { try { return JSON.parse(prefsRaw) } catch { return null } })() : null
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (prefsData) setPrefs(prefsData)
+
+    try {
+      const placesRaw = localStorage.getItem('selectedPlaces')
+      const placesParsed = placesRaw ? JSON.parse(placesRaw) : []
+      setSelectedPlaces(Array.isArray(placesParsed) ? placesParsed : [])
+    } catch {
+      setSelectedPlaces([])
+    }
 
     // Load selected hotels — prefer the multi array (only if non-empty), fall back to single
     const hotelsRaw = localStorage.getItem('selectedHotels')
@@ -155,11 +263,18 @@ export default function TripBudget({ theme, toggleTheme }) {
         setHotelBudget(b.hotelBudget ?? '')
         setTotalRaw(b.totalBudget !== undefined && b.totalBudget !== null ? String(b.totalBudget) : '')
         setHotelRaw(b.hotelBudget !== undefined && b.hotelBudget !== null ? String(b.hotelBudget) : '')
+        if (b.totalBudget) setCanonicalAmount('total', b.totalBudget, b.currency ?? 'LKR')
+        if (b.hotelBudget) setCanonicalAmount('hotel', b.hotelBudget, b.currency ?? 'LKR')
         // Always start at least at minStart
         const savedDays = b.tripDays ? Number(b.tripDays) : 0
         // Restore saved total trip days (may be more than hotel nights)
         // eslint-disable-next-line react-hooks/set-state-in-effect
         if (savedDays > 0) setTripDays(String(savedDays))
+        if (b.dailySplit) {
+          setDailySplit(normalizeDailySplit(b.dailySplit))
+          setDailySplitTouched(true)
+        }
+        if (b.splitSource) setSplitSource(String(b.splitSource))
       } catch {
         // Ignore malformed cached trip budget.
       }
@@ -168,7 +283,184 @@ export default function TripBudget({ theme, toggleTheme }) {
       const profileCurr = localStorage.getItem('et_displayCurrency')
       if (profileCurr) setCurrency(profileCurr)
     }
+
+    const handoffCheck = validateStartToBudgetHandoff({
+      selectedDistrict: dist,
+      tripPreferences: prefsData,
+      selectedHotels: hotelList,
+      selectedHotel: hotelList[0] || null,
+    })
+    if (!handoffCheck.ok) {
+      trackBudgetMetric('handoffValidationWarnings')
+      localStorage.setItem('budgetHandoffIssues', JSON.stringify(handoffCheck.issues))
+    }
   }, [navigate])
+
+  useEffect(() => {
+    let active = true
+    const districtId = district?.district_id
+    if (!districtId) return
+
+    const load = async () => {
+      const placeIds = selectedPlaces
+        .map(p => p.id || p.place_id)
+        .filter(Boolean)
+        .join(',')
+
+      const params = new URLSearchParams({ district_id: String(districtId) })
+      if (placeIds) params.set('selected_place_ids', placeIds)
+      if (prefs?.hotelType && prefs.hotelType !== 'any') params.set('hotel_type', prefs.hotelType)
+      if (prefs?.days) params.set('nights', String(prefs.days))
+      if (hotelBudget) {
+        params.set('hotel_budget', String(hotelBudget))
+        params.set('currency', currency)
+      }
+
+      let weatherMap = {}
+      const token = localStorage.getItem('token')
+      if (token) {
+        try {
+          const aiParams = new URLSearchParams({ district_id: String(districtId), top_n: '100' })
+          if (prefs?.hotelType && prefs.hotelType !== 'any') aiParams.set('hotel_type', prefs.hotelType)
+          const aiRes = await fetch(`${API_BASE}/hotels/ai-recommend?${aiParams.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const aiJson = aiRes.ok ? await aiRes.json() : null
+          const aiRows = Array.isArray(aiJson?.recommendations) ? aiJson.recommendations : []
+          weatherMap = aiRows.reduce((acc, h) => {
+            const key = String(h.hotel_id || h.place_id || '')
+            if (key) {
+              acc[key] = {
+                weather_label: h.weather_label || '',
+                temperature: h.temperature ?? null,
+              }
+            }
+            return acc
+          }, {})
+        } catch {
+          weatherMap = {}
+        }
+      }
+
+      if (active) setAiWeatherById(weatherMap)
+
+      try {
+        const res = await fetch(`${API_BASE}/hotels/recommended?${params.toString()}`)
+        const json = res.ok ? await res.json() : null
+        if (!active) return
+        if (!json?.success || !Array.isArray(json.data) || !json.data.length) {
+          setRecommendedHotels([])
+          return
+        }
+
+        const mapped = json.data.map(h => {
+          const base = mapHotel(h)
+          const weather = weatherMap[String(h.hotel_id || h.place_id || '')] || {}
+          return {
+            ...base,
+            weather_label: weather.weather_label || base.weather_label || '',
+            temperature: weather.temperature ?? base.temperature ?? null,
+            recommendation_score: h.recommendation_score,
+            recommendation_badges: h.recommendation_badges || [],
+            within_budget: h.within_budget,
+            distance_km: h.distance_km,
+          }
+        })
+
+        const selectedIds = new Set(selectedHotelsList.map(sh => sh._id))
+        const unselected = mapped.filter(h => !selectedIds.has(h._id))
+
+        if (hotelBudget) {
+          const withinBudget = unselected.filter(h => h.within_budget === true)
+          setRecommendedHotels((withinBudget.length > 0 ? withinBudget : unselected).slice(0, 8))
+        } else {
+          setRecommendedHotels(unselected.slice(0, 8))
+        }
+      } catch {
+        if (active) setRecommendedHotels([])
+      }
+    }
+
+    load()
+
+    return () => { active = false }
+  }, [district, selectedPlaces, prefs, hotelBudget, currency, selectedHotelsList])
+
+  useEffect(() => {
+    let active = true
+    const districtId = district?.district_id
+    const total = Number(totalBudget)
+    const hotel = Number(hotelBudget)
+    const days = Number(tripDays || prefs?.days || 1)
+    const token = localStorage.getItem('token')
+
+    if (!token || !districtId || !total || total <= 0 || !Number.isFinite(days) || days <= 0) {
+      setBudgetAi(null)
+      setBudgetAiError('')
+      setBudgetAiLoading(false)
+      localStorage.removeItem('tripBudgetAI')
+      return () => { active = false }
+    }
+
+    const loadBudgetAi = async () => {
+      setBudgetAiLoading(true)
+      setBudgetAiError('')
+
+      const selectedHotelIds = selectedHotelsList
+        .map((h) => h.hotel_id || h._id)
+        .filter(Boolean)
+        .join(',')
+
+      const selectedHotelNights = selectedHotelsList.reduce(
+        (sum, h) => sum + Math.max(1, Number(h?.nights) || 1),
+        0
+      )
+
+      const params = new URLSearchParams({
+        district_id: String(districtId),
+        total_budget: String(total),
+        hotel_budget: String(Number.isFinite(hotel) ? hotel : 0),
+        days: String(days),
+        hotel_nights: String(selectedHotelNights),
+        currency,
+      })
+
+      if (selectedHotelIds) params.set('selected_hotel_ids', selectedHotelIds)
+
+      try {
+        const res = await fetch(`${API_BASE}/budget/ai-recommend?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const json = res.ok ? await res.json() : null
+
+        if (!active) return
+
+        if (!json?.success) {
+          setBudgetAi(null)
+          setBudgetAiError(json?.message || json?.error || 'Unable to fetch budget recommendation right now.')
+          localStorage.removeItem('tripBudgetAI')
+          trackBudgetMetric('aiUnavailable')
+          return
+        }
+
+        setBudgetAi(json)
+        localStorage.setItem('tripBudgetAI', JSON.stringify(json))
+        trackBudgetMetric('aiAvailable')
+      } catch {
+        if (!active) return
+        setBudgetAi(null)
+        setBudgetAiError('Budget AI is temporarily unavailable.')
+        localStorage.removeItem('tripBudgetAI')
+        trackBudgetMetric('aiUnavailable')
+      } finally {
+        if (active) setBudgetAiLoading(false)
+      }
+    }
+
+    loadBudgetAi()
+
+    return () => { active = false }
+  }, [district, totalBudget, hotelBudget, tripDays, prefs, selectedHotelsList, currency])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -181,12 +473,14 @@ export default function TripBudget({ theme, toggleTheme }) {
     const num = val.replace(/[^0-9]/g, '')
     setTotalRaw(num)
     setTotalBudget(num)
+    setCanonicalAmount('total', num)
   }
 
   const handleHotelInput = (val) => {
     const num = val.replace(/[^0-9]/g, '')
     setHotelRaw(num)
     setHotelBudget(num)
+    setCanonicalAmount('hotel', num)
   }
 
   const formatWithCommas = (digits) => {
@@ -207,6 +501,7 @@ export default function TripBudget({ theme, toggleTheme }) {
     const normalized = normalizeLeadingZeros(totalRaw)
     setTotalRaw(normalized)
     setTotalBudget(normalized)
+    setCanonicalAmount('total', normalized)
   }
 
   const handleHotelBlur = () => {
@@ -214,6 +509,7 @@ export default function TripBudget({ theme, toggleTheme }) {
     const normalized = normalizeLeadingZeros(hotelRaw)
     setHotelRaw(normalized)
     setHotelBudget(normalized)
+    setCanonicalAmount('hotel', normalized)
   }
 
   // ── Hotel grid helpers ──────────────────────────────────────────────────────
@@ -300,8 +596,14 @@ export default function TripBudget({ theme, toggleTheme }) {
       totalBudget: totalBudget ? Number(totalBudget) : null,
       hotelBudget: hotelBudget ? Number(hotelBudget) : null,
       tripDays:    Number(tripDays),
+      dailySplit: normalizeDailySplit(dailySplit),
+      splitSource,
+      aiMode: budgetAi?.ai_daily_plan?.percentages ? 'server' : 'fallback',
     }
     localStorage.setItem('tripBudget', JSON.stringify(budget))
+    if (budgetAi) {
+      localStorage.setItem('tripBudgetAI', JSON.stringify(budgetAi))
+    }
     navigate('/trip-details')
   }
 
@@ -314,12 +616,14 @@ export default function TripBudget({ theme, toggleTheme }) {
     const normalized = Math.max(0, Math.round(Number(amount) || 0))
     setTotalBudget(normalized)
     setTotalRaw(String(normalized))
+    setCanonicalAmount('total', normalized)
   }
 
   const setHotelBudgetAmount = (amount) => {
     const normalized = Math.max(0, Math.round(Number(amount) || 0))
     setHotelBudget(normalized)
     setHotelRaw(String(normalized))
+    setCanonicalAmount('hotel', normalized)
   }
 
   const hotelQuickPicks = (() => {
@@ -361,6 +665,145 @@ export default function TripBudget({ theme, toggleTheme }) {
   const isTripDaysInvalid = !tripDays || Number(tripDays) < minDays
   const isHotelOverTotal = !!hotelBudget && !!totalBudget && Number(hotelBudget) > Number(totalBudget)
   const canContinue = !isBudgetIncomplete && !isTripDaysInvalid && !isHotelOverTotal
+  const ruleDays = Math.max(Number(tripDays || prefsDays || 1), 1)
+  const aiDailyPlan = budgetAi?.ai_daily_plan || null
+  const totalHotelNightsForAi = selectedHotelsList.reduce((sum, h) => sum + Math.max(1, Number(h?.nights) || 1), 0)
+  const hotelNightsForAi = Math.max(totalHotelNightsForAi, 1)
+  const normalizedSplit = normalizeDailySplit(dailySplit)
+  const plannedTotal = Number(totalBudget || 0)
+  const plannedHotel = Number(hotelBudget || 0)
+  const plannedRemaining = Math.max(plannedTotal - plannedHotel, 0)
+  const localAiSuggestedSplit = deriveAiFallbackSplit({
+    ruleDays,
+    hotelNights: hotelNightsForAi,
+    selectedHotelsCount: selectedHotelsList.length,
+    plannedRemaining,
+  })
+  const aiSuggestedSplit = normalizeDailySplit(aiDailyPlan?.percentages || localAiSuggestedSplit)
+  const isServerAiSplit = !!aiDailyPlan?.percentages
+  const splitAmounts = {
+    food: (plannedRemaining * normalizedSplit.food) / 100,
+    transport: (plannedRemaining * normalizedSplit.transport) / 100,
+    activities_misc: (plannedRemaining * normalizedSplit.activities_misc) / 100,
+  }
+  const splitPerDay = {
+    food: splitAmounts.food / ruleDays,
+    transport: splitAmounts.transport / ruleDays,
+    activities_misc: splitAmounts.activities_misc / ruleDays,
+  }
+  const splitTotalPercent = normalizedSplit.food + normalizedSplit.transport + normalizedSplit.activities_misc
+  const perDayNonHotelBudget = ruleDays > 0 ? (plannedRemaining / ruleDays) : 0
+  const applyAiSplit = () => {
+    setDailySplit(aiSuggestedSplit)
+    setDailySplitTouched(false)
+    const source = isServerAiSplit ? 'ai-server' : 'ai-fallback'
+    setSplitSource(source)
+    if (source === 'ai-server') {
+      trackBudgetMetric('applyServerAiSplit')
+      reportBudgetAiEvent('apply_server_ai_split')
+    } else {
+      trackBudgetMetric('applyFallbackAiSplit')
+      reportBudgetAiEvent('apply_fallback_ai_split')
+    }
+  }
+
+  const resetRuleSplit = () => {
+    setDailySplit({ ...DAILY_SPLIT_DEFAULT })
+    setDailySplitTouched(true)
+    setSplitSource('rule-default')
+    trackBudgetMetric('applyRuleDefaultSplit')
+    reportBudgetAiEvent('apply_rule_default_split')
+  }
+
+  const updateSplitValue = (key, value) => {
+    const keys = ['food', 'transport', 'activities_misc']
+    const safeValue = Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
+    const others = keys.filter((k) => k !== key)
+    const current = normalizeDailySplit(dailySplit)
+    const currentOtherTotal = others.reduce((sum, k) => sum + current[k], 0)
+    const remaining = Math.max(0, 100 - safeValue)
+
+    const candidate = { ...current, [key]: safeValue }
+    if (currentOtherTotal <= 0) {
+      candidate[others[0]] = Math.floor(remaining / 2)
+      candidate[others[1]] = remaining - candidate[others[0]]
+    } else {
+      candidate[others[0]] = (current[others[0]] / currentOtherTotal) * remaining
+      candidate[others[1]] = (current[others[1]] / currentOtherTotal) * remaining
+    }
+
+    setDailySplit(normalizeDailySplit(candidate))
+    setDailySplitTouched(true)
+    if (splitSource !== 'custom') {
+      trackBudgetMetric('customSplitAdjustments')
+      reportBudgetAiEvent('apply_custom_split')
+    }
+    setSplitSource('custom')
+  }
+
+  useEffect(() => {
+    if (dailySplitTouched) return
+    setDailySplit(aiSuggestedSplit)
+    if (isServerAiSplit) {
+      setSplitSource('ai-server')
+    } else {
+      setSplitSource('ai-fallback')
+    }
+  }, [aiDailyPlan, dailySplitTouched, isServerAiSplit, aiSuggestedSplit])
+
+  useEffect(() => {
+    if (plannedTotal <= 0) return
+
+    const mode = isServerAiSplit ? 'server' : 'fallback'
+    if (lastAvailabilityRef.current === mode) return
+
+    lastAvailabilityRef.current = mode
+    if (mode === 'server') {
+      trackBudgetMetric('serverSuggestionCycles')
+    } else {
+      trackBudgetMetric('fallbackSuggestionCycles')
+      reportBudgetAiEvent('fallback_cycle')
+    }
+  }, [isServerAiSplit, plannedTotal])
+
+  useEffect(() => {
+    let rafId = null
+
+    const syncRightPanelScroll = () => {
+      const layoutEl = layoutRef.current
+      const rightEl = rightColRef.current
+      if (!layoutEl || !rightEl) return
+
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight
+      if (rightMax <= 0) return
+
+      const rect = layoutEl.getBoundingClientRect()
+      const viewportH = window.innerHeight || document.documentElement.clientHeight || 1
+      const travel = Math.max(layoutEl.offsetHeight - viewportH, 1)
+
+      // 0 when layout enters viewport top, 1 when layout bottom approaches viewport bottom.
+      const progress = Math.min(1, Math.max(0, (-rect.top) / travel))
+      rightEl.scrollTop = rightMax * progress
+    }
+
+    const onScrollOrResize = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(() => {
+        syncRightPanelScroll()
+        rafId = null
+      })
+    }
+
+    syncRightPanelScroll()
+    window.addEventListener('scroll', onScrollOrResize, { passive: true })
+    window.addEventListener('resize', onScrollOrResize)
+
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize)
+      window.removeEventListener('resize', onScrollOrResize)
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
+  }, [districtHotels.length, recommendedHotels.length, selectedHotelsList.length, budgetAiLoading, plannedRemaining, ruleDays])
 
   return (
     <div className="tb-page">
@@ -433,7 +876,7 @@ export default function TripBudget({ theme, toggleTheme }) {
 
       {/* ── Body ── */}
       <div className="tb-body">
-        <div className="tb-layout">
+        <div className="tb-layout" ref={layoutRef}>
 
           {/* ══ LEFT COLUMN — Trip Budget + Hotel Budget ══ */}
           <div className="tb-col-left">
@@ -471,7 +914,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                     className={`tb-quick-chip ${String(totalBudget) === String(n) ? 'active' : ''}`}
                     onClick={() => setTotalBudgetAmount(n)}
                   >
-                    {sym}{n.toLocaleString()}
+                    {formatMoney(n, sym)}
                   </button>
                 ))}
               </div>
@@ -515,7 +958,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                     onClick={() => setHotelBudgetAmount(pick.amount)}
                     title={pick.label !== 'Quick' ? `${pick.label} of total budget` : undefined}
                   >
-                    {sym}{Number(pick.amount).toLocaleString()}
+                    {formatMoney(Number(pick.amount), sym)}
                   </button>
                 ))}
               </div>
@@ -533,8 +976,8 @@ export default function TripBudget({ theme, toggleTheme }) {
                     {remainingBudget !== null && (
                       <span className="tb-remaining">
                         {remainingBudget >= 0
-                          ? `· ${sym}${remainingBudget.toLocaleString()} remaining for activities &amp; food`
-                          : `· ⚠️ Hotel exceeds total budget by ${sym}${Math.abs(remainingBudget).toLocaleString()}`}
+                          ? `· ${formatMoney(remainingBudget, sym)} remaining for activities & food`
+                          : `· ⚠️ Hotel exceeds total budget by ${formatMoney(Math.abs(remainingBudget), sym)}`}
                       </span>
                     )}
                   </div>
@@ -549,7 +992,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                 <div className="tb-selected-total-box">
                   <div className="tb-selected-total-title">Selected Hotels Full Total</div>
                   <div className="tb-selected-total-value">
-                    {sym}{selectedHotelsMinTotal.toLocaleString()} - {sym}{selectedHotelsMaxTotal.toLocaleString()}
+                    {formatMoney(selectedHotelsMinTotal, sym)} - {formatMoney(selectedHotelsMaxTotal, sym)}
                     <span className="tb-selected-total-cur"> {currency}</span>
                   </div>
                   <div className="tb-selected-total-meta">
@@ -557,8 +1000,8 @@ export default function TripBudget({ theme, toggleTheme }) {
                     {selectedVsHotelBudgetDiff !== null && (
                       <span className={selectedVsHotelBudgetDiff >= 0 ? 'tb-selected-total-ok' : 'tb-selected-total-over'}>
                         {selectedVsHotelBudgetDiff >= 0
-                          ? ` · within hotel budget by ${sym}${selectedVsHotelBudgetDiff.toLocaleString()}`
-                          : ` · over hotel budget by ${sym}${Math.abs(selectedVsHotelBudgetDiff).toLocaleString()}`}
+                          ? ` · within hotel budget by ${formatMoney(selectedVsHotelBudgetDiff, sym)}`
+                          : ` · over hotel budget by ${formatMoney(Math.abs(selectedVsHotelBudgetDiff), sym)}`}
                       </span>
                     )}
                   </div>
@@ -590,6 +1033,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                 const availableHotels = visiblePool.slice(0, maxVisibleHotels)
                 return (
                   <>
+                    {/* ── Recommended Hotels Block ── */}
                     {selectedHotelsList.length > 0 && (
                       <div className="tb-hotel-grid-section">
                         <div className="tb-hotel-grid-header">
@@ -614,10 +1058,16 @@ export default function TripBudget({ theme, toggleTheme }) {
                                   <span className="tb-hg-name">{h.name}</span>
                                   <span className="tb-hg-stars">{'★'.repeat(h.starRating)}{'☆'.repeat(Math.max(0, 5 - h.starRating))}</span>
                                   <span className="tb-hg-price">
-                                    {sym}{convertFromLKR(nightly.min, currency).toLocaleString()}
-                                    –{sym}{convertFromLKR(nightly.max, currency).toLocaleString()}
+                                    {formatMoney(convertFromLKR(nightly.min, currency), sym)}
+                                    -{formatMoney(convertFromLKR(nightly.max, currency), sym)}
                                     <span className="tb-hg-price-cur">&nbsp;{currency}/night</span>
                                   </span>
+                                  {!!h.weather_label && (
+                                    <span className="tb-hg-weather">
+                                      {weatherPresentation(h.weather_label).emoji} {weatherPresentation(h.weather_label).label}
+                                      {h.temperature != null ? ` · ${Math.round(Number(h.temperature))}°C` : ''}
+                                    </span>
+                                  )}
                                   <div className="tb-hg-actions">
                                     <div className="tb-hg-nights-row">
                                       <span className="tb-hg-nights-label">🌙 Nights:</span>
@@ -635,8 +1085,8 @@ export default function TripBudget({ theme, toggleTheme }) {
                                       {totalNightsCap && <span className="tb-hg-nights-cap">/ {maxNightsFor(h._id)} max</span>}
                                     </div>
                                     <span className="tb-hg-nights-total">
-                                      {sym}{convertFromLKR(nightly.min * (selectedEntry?.nights || 1), currency).toLocaleString()}
-                                      –{sym}{convertFromLKR(nightly.max * (selectedEntry?.nights || 1), currency).toLocaleString()} total
+                                      {formatMoney(convertFromLKR(nightly.min * (selectedEntry?.nights || 1), currency), sym)}
+                                      -{formatMoney(convertFromLKR(nightly.max * (selectedEntry?.nights || 1), currency), sym)} total
                                     </span>
                                     <button type="button" className="tb-hg-remove-btn"
                                       onClick={e => { e.stopPropagation(); handleRemoveHotel(h._id) }}
@@ -650,6 +1100,79 @@ export default function TripBudget({ theme, toggleTheme }) {
                       </div>
                     )}
 
+                    {/* ── Recommended Hotels Block ── */}
+                    {recommendedHotels.length > 0 && (() => {
+                      const selectedIds = new Set(selectedHotelsList.map(sh => sh._id))
+                      const recoVisible = recommendedHotels.filter(h => !selectedIds.has(h._id))
+                      if (!recoVisible.length) return null
+                      const totalNightsUsed = selectedHotelsList.reduce((s, sh) => s + (sh.nights || 1), 0)
+                      const nightsFull = totalNightsCap != null && totalNightsUsed >= Number(totalNightsCap)
+                      return (
+                        <div className="tb-hotel-grid-section tb-hotel-reco-section">
+                          <div className="tb-hotel-grid-header">
+                            <span className="tb-hotel-grid-title">✨ Recommended for your trip</span>
+                            <span className="tb-hotel-grid-hint">Matched to your selected places, nights and budget</span>
+                          </div>
+                          <p className="tb-hotel-reco-sub">Scored by proximity, budget, type and rating from your step 1-5 plan.</p>
+                          <div className="tb-hotel-grid tb-hotel-grid--twelve">
+                            {recoVisible.map(h => {
+                              const affordable = budgetLKR ? h.priceRange.min <= budgetLKR : null
+                              const score = Number(h.recommendation_score || 0)
+                              const w = weatherPresentation(h.weather_label)
+                              return (
+                                <div
+                                  key={`reco_${h._id}`}
+                                  className={`tb-hg-card tb-hg-card--reco${budgetLKR && !affordable ? ' unaffordable' : ''}`}
+                                  onClick={() => !nightsFull && affordable !== false && handlePickHotel(h)}
+                                  style={{ cursor: affordable === false || nightsFull ? 'default' : 'pointer' }}
+                                >
+                                  <div className="tb-hg-img-wrap">
+                                    <img src={h.images?.[0]?.url} alt={h.name} className="tb-hg-img" />
+                                    <span className="tb-hg-reco-badge">✨ Recommended · {Math.round(score * 100)}% match</span>
+                                    {budgetLKR && (
+                                      <span className={`tb-hg-afford-badge ${affordable ? 'yes' : 'no'}`}>
+                                        {affordable ? 'Within budget' : 'Over budget'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="tb-hg-info">
+                                    <span className="tb-hg-name">{h.name}</span>
+                                    <span className="tb-hg-stars">{'★'.repeat(h.starRating)}{'☆'.repeat(Math.max(0, 5 - h.starRating))}</span>
+                                    {h.recommendation_badges?.length > 0 && (
+                                      <div className="tb-hg-reco-tags">
+                                        {h.recommendation_badges.slice(0, 3).map(b => (
+                                          <span key={b} className="tb-hg-reco-tag">{b}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <span className="tb-hg-price">
+                                      {formatMoney(convertFromLKR(h.priceRange.min, currency), sym)}
+                                      -{formatMoney(convertFromLKR(h.priceRange.max || h.priceRange.min, currency), sym)}
+                                      <span className="tb-hg-price-cur">&nbsp;{currency}/night</span>
+                                    </span>
+                                    {!!h.weather_label && (
+                                      <span className="tb-hg-weather">{w.emoji} {w.label}{h.temperature != null ? ` · ${Math.round(Number(h.temperature))}°C` : ''}</span>
+                                    )}
+                                    {nightsFull ? (
+                                      <button type="button" className="tb-hg-pick-btn full" disabled>🌙 Nights full</button>
+                                    ) : affordable !== false ? (
+                                      <button
+                                        type="button"
+                                        className="tb-hg-pick-btn"
+                                        onClick={e => { e.stopPropagation(); handlePickHotel(h) }}
+                                      >Pick &amp; set nights →</button>
+                                    ) : (
+                                      <span className="tb-hg-over-label">Over budget</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     <div className="tb-hotel-grid-section">
                       <div className="tb-hotel-grid-header">
                         <span className="tb-hotel-grid-title">
@@ -658,8 +1181,8 @@ export default function TripBudget({ theme, toggleTheme }) {
                         {hotelBudget && (
                           <span className="tb-hotel-grid-hint">
                             {usingAffordableSet
-                              ? <>Matching your budget: <strong>{sym}{Number(hotelBudget).toLocaleString()}</strong>/night</>
-                              : <>No exact matches, showing nearest options for <strong>{sym}{Number(hotelBudget).toLocaleString()}</strong>/night</>}
+                              ? <>Matching your budget: <strong>{formatMoney(Number(hotelBudget), sym)}</strong>/night</>
+                              : <>No exact matches, showing nearest options for <strong>{formatMoney(Number(hotelBudget), sym)}</strong>/night</>}
                           </span>
                         )}
                       </div>
@@ -689,10 +1212,16 @@ export default function TripBudget({ theme, toggleTheme }) {
                                   <span className="tb-hg-name">{h.name}</span>
                                   <span className="tb-hg-stars">{'★'.repeat(h.starRating)}{'☆'.repeat(Math.max(0, 5 - h.starRating))}</span>
                                   <span className="tb-hg-price">
-                                    {sym}{convertFromLKR(h.priceRange.min, currency).toLocaleString()}
-                                    –{sym}{convertFromLKR(h.priceRange.max, currency).toLocaleString()}
+                                    {formatMoney(convertFromLKR(h.priceRange.min, currency), sym)}
+                                    -{formatMoney(convertFromLKR(h.priceRange.max, currency), sym)}
                                     <span className="tb-hg-price-cur">&nbsp;{currency}/night</span>
                                   </span>
+                                  {!!h.weather_label && (
+                                    <span className="tb-hg-weather">
+                                      {weatherPresentation(h.weather_label).emoji} {weatherPresentation(h.weather_label).label}
+                                      {h.temperature != null ? ` · ${Math.round(Number(h.temperature))}°C` : ''}
+                                    </span>
+                                  )}
                                   {isNightsFull ? (
                                     <button type="button" className="tb-hg-pick-btn full" disabled>
                                       🌙 Nights full
@@ -732,50 +1261,9 @@ export default function TripBudget({ theme, toggleTheme }) {
           </div>{/* end tb-col-left */}
 
           {/* ══ RIGHT COLUMN — Currency + Days ══ */}
-          <div className="tb-col-right">
+          <div className="tb-col-right" ref={rightColRef}>
 
-            {/* ── Section 1: Currency ── */}
-            <section className="tb-section tb-currency-section">
-              <div className="tb-currency-header">
-                <div className="tb-currency-title-row">
-                  <span className="tb-currency-globe">💱</span>
-                  <div>
-                    <h2>Budget Currency</h2>
-                    <p>All amounts will be shown in your chosen currency</p>
-                  </div>
-                </div>
-                <div className="tb-currency-active-badge">
-                  {CURRENCIES.find(c => c.code === currency)?.flag}
-                  <span className="tb-cab-sym">{CURRENCIES.find(c => c.code === currency)?.symbol}</span>
-                  <span className="tb-cab-code">{currency}</span>
-                </div>
-              </div>
-              <div className="tb-currency-strip">
-                {CURRENCIES.map(c => (
-                  <button
-                    key={c.code}
-                    className={`tb-cs-btn${currency === c.code ? ' active' : ''}`}
-                    onClick={() => {
-                      if (c.code === currency) return
-                      const nextTotal = totalBudget ? convertCurrencyAmount(totalBudget, currency, c.code) : 0
-                      const nextHotel = hotelBudget ? convertCurrencyAmount(hotelBudget, currency, c.code) : 0
-                      setCurrency(c.code)
-                      setTotalBudget(nextTotal > 0 ? nextTotal : '')
-                      setHotelBudget(nextHotel > 0 ? nextHotel : '')
-                      setTotalRaw(nextTotal > 0 ? String(nextTotal) : '')
-                      setHotelRaw(nextHotel > 0 ? String(nextHotel) : '')
-                    }}
-                  >
-                    <span className="tb-cs-flag">{c.flag}</span>
-                    <span className="tb-cs-sym">{c.symbol}</span>
-                    <span className="tb-cs-code">{c.code}</span>
-                    <span className="tb-cs-name">{c.label}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* ── Section 4: Total Trip Duration ── */}
+            {/* ── Section 1: Total Trip Duration ── */}
             <section className="tb-section tb-days-section">
               <div className="tb-section-header">
                 <span className="tb-section-icon" aria-hidden="true">
@@ -833,10 +1321,281 @@ export default function TripBudget({ theme, toggleTheme }) {
 
                 {tripDays && totalBudget && Number(tripDays) > 0 && (
                   <p className="tb-days-hint">
-                    ≈ <strong>{sym}{Math.round(Number(totalBudget) / Number(tripDays)).toLocaleString()}</strong> per day based on your total budget
+                    ≈ <strong>{formatMoney((Number(totalBudget) - Number(hotelBudget || 0)) / Number(tripDays), sym)}</strong> per day based on your remaining budget (total - hotel)
                   </p>
                 )}
               </div>
+            </section>
+
+            {/* ── Section 2: Currency ── */}
+            <section className="tb-section tb-currency-section">
+              <div className="tb-currency-header">
+                <div className="tb-currency-title-row">
+                  <span className="tb-currency-globe">💱</span>
+                  <div>
+                    <h2>Budget Currency</h2>
+                    <p>All amounts will be shown in your chosen currency</p>
+                  </div>
+                </div>
+                <div className="tb-currency-active-badge">
+                  {CURRENCIES.find(c => c.code === currency)?.flag}
+                  <span className="tb-cab-sym">{CURRENCIES.find(c => c.code === currency)?.symbol}</span>
+                  <span className="tb-cab-code">{currency}</span>
+                </div>
+              </div>
+              <div className="tb-currency-strip">
+                {CURRENCIES.map(c => (
+                  <button
+                    key={c.code}
+                    className={`tb-cs-btn${currency === c.code ? ' active' : ''}`}
+                    onClick={() => {
+                      if (c.code === currency) return
+                      const totalLkr = canonicalBudgetRef.current.totalLkr ?? (totalBudget ? convertToLKR(totalBudget, currency) : 0)
+                      const hotelLkr = canonicalBudgetRef.current.hotelLkr ?? (hotelBudget ? convertToLKR(hotelBudget, currency) : 0)
+                      const nextTotal = totalLkr > 0 ? convertFromLKR(totalLkr, c.code) : 0
+                      const nextHotel = hotelLkr > 0 ? convertFromLKR(hotelLkr, c.code) : 0
+                      setCurrency(c.code)
+                      setTotalBudget(nextTotal > 0 ? nextTotal : '')
+                      setHotelBudget(nextHotel > 0 ? nextHotel : '')
+                      setTotalRaw(nextTotal > 0 ? String(nextTotal) : '')
+                      setHotelRaw(nextHotel > 0 ? String(nextHotel) : '')
+                    }}
+                  >
+                    <span className="tb-cs-flag">{c.flag}</span>
+                    <span className="tb-cs-sym">{c.symbol}</span>
+                    <span className="tb-cs-code">{c.code}</span>
+                    <span className="tb-cs-name">{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* ── Section 3: AI daily budget plan (adjustable) ── */}
+            <section className="tb-section tb-ai-section">
+              <div className="tb-section-header">
+                <span className="tb-section-icon">🎯</span>
+                <div>
+                  <h2>AI Daily Budget Plan</h2>
+                  <p>Get a recommended daily split, adjust it, and continue with confidence.</p>
+                </div>
+              </div>
+
+              {budgetAiLoading && <p className="tb-ai-loading">Generating AI daily plan...</p>}
+              {!budgetAiLoading && !plannedTotal && (
+                <p className="tb-ai-muted">Enter total budget and hotel budget to generate your daily plan.</p>
+              )}
+
+              {!budgetAiLoading && plannedTotal > 0 && (
+                <>
+                  <div className="tb-ai-guide-grid">
+                    <article className="tb-ai-guide-item">
+                      <span className="tb-ai-guide-step">Step 1</span>
+                      <strong>Apply AI split</strong>
+                      <p>Use the AI suggestion as your starting point.</p>
+                    </article>
+                    <article className="tb-ai-guide-item">
+                      <span className="tb-ai-guide-step">Step 2</span>
+                      <strong>Adjust sliders</strong>
+                      <p>Move percentages until they match your travel style.</p>
+                    </article>
+                    <article className="tb-ai-guide-item">
+                      <span className="tb-ai-guide-step">Step 3</span>
+                      <strong>Review per-day budget</strong>
+                      <p>Check your daily spend before saving and continuing.</p>
+                    </article>
+                  </div>
+
+                  <div className="tb-ai-legend-grid">
+                    <article className="tb-ai-legend-item">
+                      <span>Full budget</span>
+                      <strong>{formatMoney(plannedTotal, sym)}</strong>
+                    </article>
+                    <article className="tb-ai-legend-item">
+                      <span>Hotel set-aside</span>
+                      <strong>{formatMoney(plannedHotel, sym)}</strong>
+                    </article>
+                    <article className="tb-ai-legend-item">
+                      <span>Non-hotel budget</span>
+                      <strong>{formatMoney(plannedRemaining, sym)}</strong>
+                    </article>
+                    <article className="tb-ai-legend-item">
+                      <span>Total trip days</span>
+                      <strong>{ruleDays} day{ruleDays !== 1 ? 's' : ''}</strong>
+                    </article>
+                    <article className="tb-ai-legend-item">
+                      <span>Per-day non-hotel budget</span>
+                      <strong>{formatMoney(perDayNonHotelBudget, sym)} / day</strong>
+                    </article>
+                  </div>
+
+                  <div className="tb-ai-actions">
+                    <button
+                      type="button"
+                      className="tb-ai-action-btn tb-ai-action-btn-primary"
+                      onClick={applyAiSplit}
+                      disabled={plannedTotal <= 0 || ruleDays <= 0}
+                      title={isServerAiSplit ? 'Apply AI suggested split' : 'Apply local AI fallback split'}
+                    >
+                      {isServerAiSplit ? 'Apply recommended split' : 'Apply fallback split'}
+                    </button>
+                    <button
+                      type="button"
+                      className="tb-ai-action-btn"
+                      onClick={resetRuleSplit}
+                    >
+                      Use balanced split (55 / 30 / 15)
+                    </button>
+                  </div>
+
+                  <div className="tb-ai-adjust-grid">
+                    <div className={`tb-ai-sum-check ${splitTotalPercent === 100 ? 'ok' : 'warn'}`}>
+                      <span>Split total</span>
+                      <strong>{splitTotalPercent}% {splitTotalPercent === 100 ? 'perfect' : '(target: 100%)'}</strong>
+                    </div>
+
+                    <article className="tb-ai-adjust-item">
+                      <div className="tb-ai-adjust-head">
+                        <span>🍽️ Food</span>
+                        <strong>{normalizedSplit.food}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={normalizedSplit.food}
+                        onChange={(e) => updateSplitValue('food', e.target.value)}
+                      />
+                      <div className="tb-ai-adjust-meta">
+                        <span>{formatMoney(splitPerDay.food, sym)} / day</span>
+                        <span>{formatMoney(splitAmounts.food, sym)} total</span>
+                      </div>
+                    </article>
+
+                    <article className="tb-ai-adjust-item">
+                      <div className="tb-ai-adjust-head">
+                        <span>🚗 Transport</span>
+                        <strong>{normalizedSplit.transport}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={normalizedSplit.transport}
+                        onChange={(e) => updateSplitValue('transport', e.target.value)}
+                      />
+                      <div className="tb-ai-adjust-meta">
+                        <span>{formatMoney(splitPerDay.transport, sym)} / day</span>
+                        <span>{formatMoney(splitAmounts.transport, sym)} total</span>
+                      </div>
+                    </article>
+
+                    <article className="tb-ai-adjust-item">
+                      <div className="tb-ai-adjust-head">
+                        <span>✨ Activities & Misc</span>
+                        <strong>{normalizedSplit.activities_misc}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={normalizedSplit.activities_misc}
+                        onChange={(e) => updateSplitValue('activities_misc', e.target.value)}
+                      />
+                      <div className="tb-ai-adjust-meta">
+                        <span>{formatMoney(splitPerDay.activities_misc, sym)} / day</span>
+                        <span>{formatMoney(splitAmounts.activities_misc, sym)} total</span>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div className="tb-ai-split">
+                    <h3>Where your budget goes</h3>
+                    <p>Based on your non-hotel budget and current slider values.</p>
+
+                    <div className="tb-ai-split-grid">
+                      <article className="tb-ai-split-item">
+                        <div className="tb-ai-split-head">🏨 Hotel</div>
+                        <strong>{formatMoney(plannedHotel, sym)}</strong>
+                        <span>{plannedTotal > 0 ? Math.round((plannedHotel / plannedTotal) * 100) : 0}%</span>
+                      </article>
+
+                      <article className="tb-ai-split-item tb-ai-split-item--remaining">
+                        <div className="tb-ai-split-head">Remaining</div>
+                        <strong>{formatMoney(plannedRemaining, sym)}</strong>
+                        <span>{plannedTotal > 0 ? Math.round((plannedRemaining / plannedTotal) * 100) : 0}% of total</span>
+                      </article>
+
+                      <article className="tb-ai-split-item">
+                        <div className="tb-ai-split-head">🍽️ Food</div>
+                        <strong>{formatMoney(splitAmounts.food, sym)}</strong>
+                        <span>{normalizedSplit.food}% of remaining</span>
+                        <small>{formatMoney(splitPerDay.food, sym)} / day × {ruleDays} day{ruleDays !== 1 ? 's' : ''}</small>
+                      </article>
+
+                      <article className="tb-ai-split-item">
+                        <div className="tb-ai-split-head">🚗 Transport</div>
+                        <strong>{formatMoney(splitAmounts.transport, sym)}</strong>
+                        <span>{normalizedSplit.transport}% of remaining</span>
+                        <small>{formatMoney(splitPerDay.transport, sym)} / day × {ruleDays} day{ruleDays !== 1 ? 's' : ''}</small>
+                      </article>
+
+                      <article className="tb-ai-split-item">
+                        <div className="tb-ai-split-head">✨ Activities & Misc</div>
+                        <strong>{formatMoney(splitAmounts.activities_misc, sym)}</strong>
+                        <span>{normalizedSplit.activities_misc}% of remaining</span>
+                        <small>{formatMoney(splitPerDay.activities_misc, sym)} / day × {ruleDays} day{ruleDays !== 1 ? 's' : ''}</small>
+                      </article>
+                    </div>
+                  </div>
+
+                  <div className="tb-ai-explain">
+                    <h4>Quick summary</h4>
+                    <div className="tb-ai-explain-row">
+                      <span>Recommended split</span>
+                      <strong>
+                        {isServerAiSplit
+                          ? `Food ${aiDailyPlan.percentages.food}% · Transport ${aiDailyPlan.percentages.transport}% · Activities & Misc ${aiDailyPlan.percentages.activities_misc}%`
+                          : `Food ${aiSuggestedSplit.food}% · Transport ${aiSuggestedSplit.transport}% · Activities & Misc ${aiSuggestedSplit.activities_misc}%`}
+                      </strong>
+                    </div>
+                    <div className="tb-ai-explain-row">
+                      <span>Your non-hotel budget per day</span>
+                      <strong>{formatMoney(perDayNonHotelBudget, sym)} / day</strong>
+                    </div>
+                    <div className="tb-ai-explain-row">
+                      <span>Plan type</span>
+                      <strong>
+                        {splitSource === 'custom'
+                          ? 'Custom plan (edited by you)'
+                          : splitSource === 'rule-default'
+                          ? 'Balanced plan (55/30/15)'
+                          : 'AI recommended plan'}
+                      </strong>
+                    </div>
+                    {budgetAiError && (
+                      <div className="tb-ai-explain-row">
+                        <span>AI status</span>
+                        <strong>AI is temporarily unavailable. You can still continue with the balanced split and adjust sliders manually.</strong>
+                      </div>
+                    )}
+                    {dailySplitTouched && (
+                      <div className="tb-ai-explain-row">
+                        <span>Tip</span>
+                        <strong>You can tap “Apply recommended split” anytime to restore AI values.</strong>
+                      </div>
+                    )}
+                    {isHotelOverTotal && (
+                      <div className="tb-ai-explain-row">
+                        <span>Important</span>
+                        <strong>Your hotel budget is higher than your total budget. Please adjust it to continue.</strong>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </section>
 
           </div>{/* end tb-col-right */}
@@ -850,13 +1609,13 @@ export default function TripBudget({ theme, toggleTheme }) {
 
           <div className="tb-summary">
             {totalBudget
-              ? <span className="tb-summary-chip">🗺️ {sym}{Number(totalBudget).toLocaleString()} total</span>
+              ? <span className="tb-summary-chip">🗺️ {formatMoney(Number(totalBudget), sym)} total</span>
               : <span className="tb-summary-chip muted">🗺️ Total not set</span>}
             {hotelBudget
-              ? <span className="tb-summary-chip">🏨 {sym}{Number(hotelBudget).toLocaleString()} hotel</span>
+              ? <span className="tb-summary-chip">🏨 {formatMoney(Number(hotelBudget), sym)} hotel</span>
               : <span className="tb-summary-chip muted">🏨 Hotel not set</span>}
             {selectedHotelsList.length > 0 && (
-              <span className="tb-summary-chip">✅ Selected ~ {sym}{selectedHotelsAvgTotal.toLocaleString()}</span>
+              <span className="tb-summary-chip">✅ Selected ~ {formatMoney(selectedHotelsAvgTotal, sym)}</span>
             )}
             <span className="tb-summary-chip">🗓️ {tripDays || prefsDays} {Number(tripDays || prefsDays) === 1 ? 'day' : 'days'}{Number(tripDays) > prefsDays ? ` (${prefsDays}n hotel)` : ''}</span>
           </div>

@@ -30,6 +30,16 @@ React SPA for the TravelGenie travel planning platform, built with Vite.
 
 ---
 
+## 🆕 Recent Updates (April 2026)
+
+- Budget planner UX was simplified to focus on user actions instead of technical AI details.
+- Currency conversion in `TripBudget` now uses a canonical LKR source-of-truth to avoid round-trip drift.
+- `TripDetails` now uses saved adjusted split data (`dailySplit`) for budget breakdown.
+- `ExpenseTracker` planned allocations now read the same per-trip split so values match `TripDetails`.
+- Admin AI monitor now tracks all services (Budget, Hotel, Place) with availability donuts, request bars, and per-service health table.
+
+---
+
 ## 🚀 Getting Started
 
 ### 1 — Install dependencies
@@ -158,6 +168,7 @@ State passes through `localStorage` across 6 steps:
 | Trip preferences | `TripPreferences` | `HotelPicker`, `TripBudget`, `TripDetails` |
 | Selected hotel | `HotelPicker` | `TripBudget`, `TripDetails` |
 | Budget data | `TripBudget` | `TripDetails` |
+| `tripBudgetSplits` | `TripDetails` (save/update) | `ExpenseTracker` (planned budget breakdown) |
 
 ---
 
@@ -197,6 +208,16 @@ Accessed at `/admin`. Sidebar selects one of 8 sections:
 | Expenses | `ExpenseManagement` | All-user expenses + budget alert dispatch |
 | Reviews | `ReviewManagement` | Approve / reject / flag / unflag + admin response |
 | Trips | `TripItineraryManagement` | All trips + status workflow |
+
+### AI Monitor panel
+
+`AiMonitorPanel` provides cross-service monitoring for:
+
+- Budget AI (`/api/budget/ai-monitor` + `/api/budget/ai-service-health`)
+- Hotel AI (`/api/hotels/ai-monitor` + `/api/hotels/ai-service-health`)
+- Place AI (`/api/places/ai-monitor` + `/api/places/ai-service-health`)
+
+Displayed metrics include total requests, successes, unavailable responses, timeouts, invalid responses, and computed availability.
 
 ---
 

@@ -82,6 +82,34 @@ function toMoneyNumber(value) {
   return Number.isFinite(num) ? num : 0
 }
 
+function normalizeSplitForDetails(split) {
+  const keys = ['food', 'transport', 'activities_misc']
+  const fallback = { food: 55, transport: 30, activities_misc: 15 }
+  const values = keys.map((key) => Math.max(Number(split?.[key]) || 0, 0))
+  const total = values.reduce((sum, value) => sum + value, 0)
+  if (total <= 0) return fallback
+
+  const scaled = values.map((value) => (value / total) * 100)
+  const base = scaled.map((value) => Math.floor(value))
+  let remainder = 100 - base.reduce((sum, value) => sum + value, 0)
+  const order = scaled
+    .map((value, idx) => ({ idx, frac: value - base[idx] }))
+    .sort((a, b) => (b.frac - a.frac) || (a.idx - b.idx))
+
+  let i = 0
+  while (remainder > 0) {
+    base[order[i % order.length].idx] += 1
+    remainder -= 1
+    i += 1
+  }
+
+  return {
+    food: base[0],
+    transport: base[1],
+    activities_misc: base[2],
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 export default function TripDetails({ theme, toggleTheme }) {
   const navigate = useNavigate()
@@ -254,10 +282,11 @@ export default function TripDetails({ theme, toggleTheme }) {
   const budSym       = CURRENCY_SYM[budget?.currency] || ''
   const budTotal     = budget?.totalBudget  || 0
   const budHotel     = budget?.hotelBudget  || 0
-  const budRemaining = budTotal - budHotel
-  const budDays      = tripDaysCount > 0 ? tripDaysCount : (prefs?.days || 1)
-  const budFood      = Math.round(budRemaining * 0.55)
-  const budTravel    = Math.round(budRemaining * 0.30)
+  const budRemaining = Math.max(budTotal - budHotel, 0)
+  const split = normalizeSplitForDetails(budget?.dailySplit)
+  const budDays      = Number(budget?.tripDays) > 0 ? Number(budget.tripDays) : (tripDaysCount > 0 ? tripDaysCount : (prefs?.days || 1))
+  const budFood      = Math.round(budRemaining * (split.food / 100))
+  const budTravel    = Math.round(budRemaining * (split.transport / 100))
   const budMisc      = budRemaining - budFood - budTravel
   const pctHotel     = budTotal > 0 ? Math.round((budHotel   / budTotal) * 100) : 0
   const pctFood      = budTotal > 0 ? Math.round((budFood     / budTotal) * 100) : 0
@@ -310,6 +339,8 @@ export default function TripDetails({ theme, toggleTheme }) {
       totalBudget: budget?.totalBudget ?? null,
       hotelBudget: budget?.hotelBudget ?? null,
       budgetCurrency: budget?.currency ?? null,
+      dailySplit: normalizeSplitForDetails(budget?.dailySplit),
+      splitSource: budget?.splitSource || null,
       tripName: tripName.trim(),
       startDate,
       endDate,
@@ -359,6 +390,29 @@ export default function TripDetails({ theme, toggleTheme }) {
         if (changed) localStorage.setItem('tripBudgets', JSON.stringify(stored))
       }
 
+      const syncTripBudgetSplitCache = (tripLike) => {
+        const split = normalizeSplitForDetails(tripLike?.dailySplit || budget?.dailySplit)
+        const ids = [tripLike?.id, tripLike?._id, tripLike?.dbTripId, tripLike?.trip_id]
+          .filter(v => v !== undefined && v !== null && v !== '')
+          .map(v => String(v))
+        if (!ids.length) return
+
+        const stored = (() => { try { return JSON.parse(localStorage.getItem('tripBudgetSplits') || '{}') } catch { return {} } })()
+        let changed = false
+        ids.forEach((id) => {
+          const prev = stored[id] || {}
+          if (
+            Number(prev.food) !== Number(split.food) ||
+            Number(prev.transport) !== Number(split.transport) ||
+            Number(prev.activities_misc) !== Number(split.activities_misc)
+          ) {
+            stored[id] = split
+            changed = true
+          }
+        })
+        if (changed) localStorage.setItem('tripBudgetSplits', JSON.stringify(stored))
+      }
+
       const finalizeEdit = (tripList = updated) => {
         localStorage.setItem('myTrips', JSON.stringify(tripList))
         const editedTrip = tripList.find((t) => {
@@ -368,6 +422,7 @@ export default function TripDetails({ theme, toggleTheme }) {
           return localId === target || dbTripId === target
         })
         if (editedTrip) syncTripBudgetCache(editedTrip)
+        if (editedTrip) syncTripBudgetSplitCache(editedTrip)
         localStorage.removeItem('editingTripId')
         setSaving(false)
         setSubmitted(true)
@@ -534,6 +589,11 @@ export default function TripDetails({ theme, toggleTheme }) {
         if (localTrip.dbTripId) stored[String(localTrip.dbTripId)] = budgetValue
         localStorage.setItem('tripBudgets', JSON.stringify(stored))
       }
+      const splitStored = (() => { try { return JSON.parse(localStorage.getItem('tripBudgetSplits') || '{}') } catch { return {} } })()
+      const normalizedSplit = normalizeSplitForDetails(localTrip.dailySplit)
+      splitStored[String(localTrip.id)] = normalizedSplit
+      if (localTrip.dbTripId) splitStored[String(localTrip.dbTripId)] = normalizedSplit
+      localStorage.setItem('tripBudgetSplits', JSON.stringify(splitStored))
       setSaving(false)
       setSubmitted(true)
       setTimeout(() => navigate('/dashboard'), 2800)
@@ -758,7 +818,7 @@ export default function TripDetails({ theme, toggleTheme }) {
                   <span className="td-section-icon">💰</span>
                   <div>
                     <h2>Budget breakdown</h2>
-                    <p>How your {budSym}{budTotal.toLocaleString()} {budget.currency} budget is split</p>
+                    <p>How your {budSym}{budTotal.toLocaleString()} {budget.currency} budget is split using your latest budget settings</p>
                   </div>
                 </div>
 
