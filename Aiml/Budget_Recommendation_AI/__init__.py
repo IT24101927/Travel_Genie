@@ -1,0 +1,1 @@
+"""Budget Recommendation AI package."""
