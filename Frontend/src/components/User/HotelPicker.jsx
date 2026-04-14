@@ -493,6 +493,7 @@ export default function HotelPicker({ theme, toggleTheme }) {
   const [hotels,         setHotels]         = useState([])
   const [recommendedHotels, setRecommendedHotels] = useState([])
   const [aiRecoLoading,  setAiRecoLoading]  = useState(true)
+  const [showAiRecoPanel, setShowAiRecoPanel] = useState(false)
   const [loading,        setLoading]        = useState(true)
   const [menuOpen,       setMenuOpen]       = useState(false)
   const [filterStar,     setFilterStar]     = useState(0)
@@ -669,14 +670,17 @@ export default function HotelPicker({ theme, toggleTheme }) {
       const districtId = resolveDistrictId(destination)
       if (!districtId) {
         setRecommendedHotels([])
+        setShowAiRecoPanel(false)
         setAiRecoLoading(false)
         return
       }
 
       try {
         setAiRecoLoading(true)
+        setShowAiRecoPanel(false)
         const token = localStorage.getItem('token')
         const placeIds = selectedPlaces.map(p => p.id || p.place_id).filter(Boolean).join(',')
+        let loadedFromAi = false
 
         const recoParams = new URLSearchParams({ district_id: districtId })
         if (placeIds) recoParams.set('selected_place_ids', placeIds)
@@ -690,10 +694,12 @@ export default function HotelPicker({ theme, toggleTheme }) {
           recoRes = await fetch(`${API_BASE}/hotels/ai-recommend?${aiParams.toString()}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
+          loadedFromAi = !!recoRes?.ok
         }
 
         if (!recoRes || !recoRes.ok) {
           recoRes = await fetch(`${API_BASE}/hotels/recommended?${recoParams}`)
+          loadedFromAi = false
         }
 
         const recoData = await recoRes.json()
@@ -718,12 +724,16 @@ export default function HotelPicker({ theme, toggleTheme }) {
             ? mappedReco.filter(h => h.preferenceType === filterCat)
             : mappedReco
 
-          setRecommendedHotels(filteredReco.slice(0, 10))
+          const nextReco = filteredReco.slice(0, 10)
+          setRecommendedHotels(nextReco)
+          setShowAiRecoPanel(loadedFromAi && nextReco.length > 0)
         } else {
           setRecommendedHotels([])
+          setShowAiRecoPanel(false)
         }
       } catch {
         setRecommendedHotels([])
+        setShowAiRecoPanel(false)
       } finally {
         setAiRecoLoading(false)
       }
@@ -1135,8 +1145,8 @@ export default function HotelPicker({ theme, toggleTheme }) {
         ) : (
           <>
             {/* ── All Hotels Section ── */}
-            <div className={recommendedHotels.length > 0 ? 'hp-section hp-section--all' : ''}>
-              {recommendedHotels.length > 0 && (
+            <div className={showAiRecoPanel && recommendedHotels.length > 0 ? 'hp-section hp-section--all' : ''}>
+              {showAiRecoPanel && recommendedHotels.length > 0 && (
                 <div className="hp-section-header">
                   <h2 className="hp-section-title">🏨 All hotels in {destination?.name}</h2>
                 </div>
@@ -1171,7 +1181,7 @@ export default function HotelPicker({ theme, toggleTheme }) {
 
         {/* ══ Right column: AI + Map (sticky) ══ */}
         <aside className="hp-right-panel" ref={mapPanelRef}>
-          {(aiRecoLoading || recommendedHotels.length > 0) && (
+          {(aiRecoLoading || (showAiRecoPanel && recommendedHotels.length > 0)) && (
             <div className="hp-ai-section hp-ai-panel">
               <div className="hp-ai-section-header">
                 <div className="hp-ai-title-group">
@@ -1180,7 +1190,7 @@ export default function HotelPicker({ theme, toggleTheme }) {
                     <h3 className="hp-ai-title">AI Hotel Picks</h3>
                   </div>
                 </div>
-                {!aiRecoLoading && recommendedHotels.length > 0 && (
+                {!aiRecoLoading && showAiRecoPanel && recommendedHotels.length > 0 && (
                   <span className="hp-ai-badge">{recommendedHotels.length} picks</span>
                 )}
               </div>
