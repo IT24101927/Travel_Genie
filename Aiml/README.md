@@ -78,6 +78,39 @@ Production-style run:
 gunicorn app:app --bind 0.0.0.0:5001
 ```
 
+## Deploy On Railway (Recommended)
+
+For better cold-start behavior than free-tier Render, deploy this `Aiml/` service on Railway.
+
+1. Create a new Railway service from this repo.
+2. Set the service Root Directory to `Aiml`.
+3. Railway will use `nixpacks.toml`/`Procfile` and start Gunicorn automatically.
+4. Add environment variables in Railway:
+
+```env
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>?sslmode=verify-full
+FLASK_DEBUG=false
+PLACE_WEATHER_CACHE_TTL_SECONDS=900
+PLACE_WEATHER_TIMEOUT_SECONDS=6
+```
+
+5. Confirm health endpoint after deploy:
+
+```text
+GET https://<your-railway-domain>/health
+```
+
+6. In backend deployment env, point AI proxy to Railway:
+
+```env
+AI_BASE_URL=https://<your-railway-domain>
+PLACE_AI_TIMEOUT_MS=20000
+```
+
+Notes:
+- Do not include trailing slash in `AI_BASE_URL`.
+- Backend now auto-normalizes protocol and falls back to host/port if needed.
+
 ## API Endpoints
 
 ### Health
