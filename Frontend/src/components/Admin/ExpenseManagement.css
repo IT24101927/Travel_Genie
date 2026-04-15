@@ -511,3 +511,20 @@
   .trend-chart { height: 80px; }
   .alert-card { flex-direction: column; }
 }
+
+@media (max-width: 480px) {
+  .em-title { font-size: 1.3rem; }
+  .header-actions { flex-direction: column; }
+  .btn-add-expense, .btn-trends, .btn-alerts { width: 100%; padding: 12px; }
+  .budget-cards { grid-template-columns: 1fr; }
+  .budget-value { font-size: 1.2rem; }
+  .budget-overview { padding: 16px; }
+  .modal-content { padding: 16px; }
+  .modal-overlay { padding: 8px; }
+  .modal-header h2 { font-size: 1.1rem; }
+  .ubu-card { grid-template-columns: 60px 1fr; padding: 12px; }
+  .ubu-circle { width: 56px; height: 56px; }
+  .trend-chart { height: 60px; gap: 4px; }
+  .alert-card { padding: 14px; }
+  .admin-toast { top: 12px; right: 12px; left: 12px; max-width: none; }
+}

@@ -748,6 +748,27 @@
   .td-overview-map-legend { margin-left: 0; }
 }
 
+@media (max-width: 480px) {
+  .td-hero h1 { font-size: 1.5rem; }
+  .td-hero { padding: 56px 14px 36px; }
+  .td-body { padding: 16px 12px 170px; }
+  .td-section { padding: 18px 14px; }
+  .td-section-header h2 { font-size: 16px; }
+  .td-stepper-wrap { padding: 14px 18px; gap: 16px; }
+  .td-stepper-num { font-size: 26px; }
+  .td-stepper-btn { width: 36px; height: 36px; }
+  .td-style-grid { gap: 8px; }
+  .td-style-chip { padding: 10px 14px; min-width: 70px; font-size: 12px; }
+  .td-style-chip > span:first-child { font-size: 18px; }
+  .td-ctx-card { padding: 10px 14px; }
+  .td-summary-chip { font-size: 0.75rem; padding: 4px 10px; }
+  .td-success-body { padding: 0 20px 28px; }
+  .td-saving-card { padding: 36px 28px; }
+  .td-ai-budget-grid { grid-template-columns: repeat(2, 1fr); }
+  .td-overview-map-section { padding: 20px 16px 0; }
+  .td-overview-map-wrap { width: calc(100% + 32px); margin-left: -16px; height: 280px; }
+}
+
 /* ══ OVERVIEW MAP ══ */
 .td-overview-map-section {
   background: #fff;

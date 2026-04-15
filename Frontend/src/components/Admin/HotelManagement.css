@@ -424,4 +424,19 @@
 }
 @media (max-width: 480px) {
   .hm2-stats { grid-template-columns: 1fr; }
+  .hm2-title { font-size: 1.3rem; }
+  .hm2-header { flex-direction: column; align-items: flex-start; }
+  .hm2-btn-add { width: 100%; text-align: center; }
+  .hm2-stat-card { padding: 14px; }
+  .hm2-stat-value { font-size: 1.2rem; }
+  .hm2-card-grid { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
+  .hm2-modal { width: min(720px, 100vw - 16px); }
+  .hm2-form { padding: 16px; }
+  .hm2-form-row { grid-template-columns: 1fr; }
+  .hm2-modal-header { padding: 16px 16px 0; }
+  .hm2-modal-header h2 { font-size: 1.1rem; }
+  .modal-overlay { padding: 8px; }
+  .modal-actions-btns { flex-direction: column; }
+  .btn-cancel, .btn-submit { width: 100%; text-align: center; }
+  .admin-toast { top: 12px; right: 12px; left: 12px; max-width: none; }
 }

@@ -722,3 +722,22 @@
   .time-slot { grid-template-columns: 1fr; }
   .day-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 12px; }
 }
+
+@media (max-width: 480px) {
+  .tm-title { font-size: 1.3rem; }
+  .tm-stats { grid-template-columns: 1fr; }
+  .tm-stat-card { padding: 14px; }
+  .tm-stat-card .stat-value { font-size: 1.2rem; }
+  .modal-content { padding: 16px; }
+  .modal-overlay { padding: 8px; }
+  .modal-header h2 { font-size: 1.1rem; }
+  .tm-select-grid { grid-template-columns: 1fr; }
+  .tm-hotel-nights-item { grid-template-columns: 1fr; gap: 6px; }
+  .tm-hotel-nights-controls { justify-content: flex-start; }
+  .day-tabs { gap: 6px; }
+  .day-tab { padding: 6px 14px; font-size: 0.82rem; }
+  .budget-breakdown { padding: 12px; }
+  .quick-activities { gap: 6px; }
+  .quick-activity-btn { padding: 5px 12px; font-size: 0.78rem; }
+  .admin-toast { top: 12px; right: 12px; left: 12px; max-width: none; }
+}

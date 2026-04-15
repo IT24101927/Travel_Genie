@@ -361,3 +361,17 @@
   .details-header { flex-direction: column; text-align: center; }
   .details-grid { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 480px) {
+  .um-title { font-size: 1.3rem; }
+  .um-stats { grid-template-columns: 1fr; }
+  .um-stat-card { padding: 12px 14px; }
+  .um-stat-value { font-size: 1.15rem; }
+  .modal-content { padding: 16px; margin: 0; }
+  .modal-overlay { padding: 8px; }
+  .modal-header h2 { font-size: 1.1rem; }
+  .interests-grid { grid-template-columns: 1fr; }
+  .action-buttons { flex-direction: column; gap: 6px; }
+  .btn-table-view, .btn-table-edit, .btn-table-delete { padding: 8px 12px; min-height: 36px; }
+  .admin-toast { top: 12px; right: 12px; left: 12px; max-width: none; }
+}

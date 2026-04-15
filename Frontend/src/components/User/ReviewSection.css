@@ -548,6 +548,21 @@
   .rs-card-header { flex-wrap: wrap; }
   .rs-card-right { flex-direction: row; align-items: center; gap: .5rem; }
   .rs-form-row { flex-direction: column; }
+  .rs-form-actions { flex-direction: column; }
+  .rs-cancel-btn, .rs-submit-btn { width: 100%; text-align: center; }
+  .rs-eform-actions { flex-direction: column; }
+  .rs-eform-cancel, .rs-eform-save { width: 100%; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .rs-card { padding: .85rem 1rem; }
+  .rs-summary { padding: 1rem; }
+  .rs-big-score { font-size: 2rem; }
+  .rs-form { padding: 1.1rem; }
+  .rs-eform-section { padding: .75rem 1rem; }
+  .rs-eform-hdr { padding: .7rem 1rem; }
+  .rs-controls { gap: .5rem; }
+  .rs-ctrl-pill { padding: .2rem .5rem; font-size: .72rem; }
 }
 
 /* ── owner action buttons (edit + delete) ─────────── */

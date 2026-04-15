@@ -1095,4 +1095,23 @@
 @media (max-width: 480px) {
   .et-list-controls { flex-direction: column; align-items: stretch; }
   .et-budget-info { flex-direction: column; align-items: flex-start; }
+  .et-hero-title { font-size: 1.5rem; }
+  .et-hero { padding: 28px 16px 60px; }
+  .et-hero-stats { flex-direction: column; gap: .5rem; }
+  .et-body { padding: 0 12px; margin: 1rem auto 3rem; }
+  .et-budget-card { padding: 1rem 1.15rem; gap: 1rem; }
+  .et-big-num { font-size: 1.6rem; }
+  .et-stat-row { grid-template-columns: 1fr; }
+  .et-stat-card { padding: .85rem 1rem; }
+  .et-form-wrap { padding: 1.1rem; }
+  .et-form-grid { grid-template-columns: 1fr; }
+  .et-expense-card { flex-direction: column; align-items: flex-start; padding: .8rem; }
+  .et-expense-right { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
+  .et-tabs { gap: .25rem; }
+  .et-tab { padding: .5rem .7rem; font-size: .82rem; }
+  .et-currency-pills { margin-left: 0; width: 100%; justify-content: center; }
+  .et-plan-row { grid-template-columns: 1.2rem 1fr; gap: .4rem; }
+  .et-plan-row-lbl { grid-column: 1 / -1; }
+  .et-plan-row-bar { grid-column: 1 / -1; }
+  .et-plan-row-spent, .et-plan-row-left { font-size: .72rem; }
 }

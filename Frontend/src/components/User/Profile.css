@@ -897,6 +897,46 @@
     min-width: auto;
     padding: 12px;
   }
+
+  .tab-content {
+    padding: 18px 14px;
+  }
+
+  .profile-container {
+    padding: 16px 12px;
+  }
+
+  .profile-header-content {
+    padding: 0 16px 20px;
+  }
+
+  .profile-avatar-large {
+    width: 90px;
+    height: 90px;
+  }
+
+  .avatar-icon-large {
+    font-size: 45px;
+  }
+
+  .content-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .security-section h3,
+  .preference-section h3,
+  .privacy-section h3 {
+    font-size: 1.1rem;
+  }
+
+  .avatar-modal {
+    padding: 20px;
+    margin: 0 8px;
+  }
+
+  .avatar-modal-overlay {
+    padding: 8px;
+  }
 }
 
 /* ── Avatar image (when a real photo is set) ── */

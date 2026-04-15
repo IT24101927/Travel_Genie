@@ -632,3 +632,23 @@
   .tp-continue-btn { width: 100%; justify-content: center; }
   .tp-back-btn { width: fit-content; }
 }
+
+@media (max-width: 480px) {
+  .tp-hero h1 { font-size: 1.5rem; }
+  .tp-hero { padding: 48px 14px 36px; }
+  .tp-body { padding: 0 10px 90px; }
+  .tp-section { padding: 16px 14px; }
+  .tp-section-header h2 { font-size: 1rem; }
+  .tp-days-num { font-size: 2.4rem; }
+  .tp-days-btn { width: 42px; height: 42px; }
+  .tp-days-control { gap: 18px; }
+  .tp-type-card { padding: 14px 6px; }
+  .tp-type-icon { font-size: 1.6rem; }
+  .tp-type-card strong { font-size: 0.82rem; }
+  .tp-hotel-card { padding: 14px 6px; }
+  .tp-hotel-icon { font-size: 1.6rem; }
+  .tp-hotel-card strong { font-size: 0.82rem; }
+  .tp-summary-chip { font-size: 0.75rem; padding: 4px 10px; }
+  .tp-step-label { font-size: 8px; }
+  .tp-step-num { width: 28px; height: 28px; font-size: 11px; }
+}
