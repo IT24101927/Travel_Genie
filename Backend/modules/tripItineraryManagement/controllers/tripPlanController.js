@@ -142,7 +142,7 @@ exports.getMyTrips = async (req, res, next) => {
     const trips = await TripItinerary.findAll({
       where: { user_id: req.user.id },
       include: [
-        { model: District, as: 'district', attributes: ['district_id', 'name', 'province'] },
+        { model: District, as: 'district', attributes: ['district_id', 'name', 'province', 'image_url'] },
       ],
       order: [['start_date', 'DESC']],
     });
@@ -159,7 +159,7 @@ exports.getAllTrips = async (req, res, next) => {
     const offset = (page - 1) * limit;
     const { count: total, rows: trips } = await TripItinerary.findAndCountAll({
       include: [
-        { model: District, as: 'district', attributes: ['district_id', 'name', 'province'] },
+        { model: District, as: 'district', attributes: ['district_id', 'name', 'province', 'image_url'] },
         { model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar'] },
       ],
       offset, limit, order: [['createdAt', 'DESC']],
@@ -174,7 +174,7 @@ exports.getTrip = async (req, res, next) => {
   try {
     const trip = await TripItinerary.findByPk(req.params.id, {
       include: [
-        { model: District, as: 'district', attributes: ['district_id', 'name', 'province'] },
+        { model: District, as: 'district', attributes: ['district_id', 'name', 'province', 'image_url'] },
         { model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar'] },
       ],
     });
@@ -193,7 +193,7 @@ exports.createTrip = async (req, res, next) => {
     const trip = await TripItinerary.create(payload);
     await syncTripTimelineStatus(trip);
     const full = await TripItinerary.findByPk(trip.trip_id, {
-      include: [{ model: District, as: 'district', attributes: ['district_id', 'name', 'province'] }],
+      include: [{ model: District, as: 'district', attributes: ['district_id', 'name', 'province', 'image_url'] }],
     });
     res.status(201).json(successResponse(full, 'Trip plan created'));
   } catch (error) { next(error); }

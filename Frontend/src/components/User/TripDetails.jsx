@@ -110,6 +110,16 @@ function normalizeSplitForDetails(split) {
   }
 }
 
+function getDestinationImage(dest) {
+  if (!dest) return null
+  if (dest.image) return dest.image
+  if (dest.image_url) return dest.image_url
+  if (typeof dest.images?.[0] === 'string') return dest.images[0]
+  if (dest.images?.[0]?.image_url) return dest.images[0].image_url
+  if (dest.images?.[0]?.url) return dest.images[0].url
+  return null
+}
+
 // ════════════════════════════════════════════════════════════
 export default function TripDetails({ theme, toggleTheme }) {
   const navigate = useNavigate()
@@ -328,7 +338,7 @@ export default function TripDetails({ theme, toggleTheme }) {
       destinationName: destination?.name,
       destinationCity: destination?.city,
       destinationCountry: destination?.country,
-      destinationImage: destination?.images?.[0] || destination?.image,
+      destinationImage: getDestinationImage(destination),
       category: destination?.category,
       hotelId: hotel?._id || null,
       hotelName: hotel?.name || null,
@@ -458,6 +468,7 @@ export default function TripDetails({ theme, toggleTheme }) {
             budgetCurrency: fresh.budget_currency || 'LKR',
             destinationName: fresh.district?.name || destination?.name || '',
             destinationCity: fresh.district?.province ? `${fresh.district.province} Province` : (destination?.city || ''),
+            destinationImage: fresh.district?.image_url || getDestinationImage(destination),
             destinationId: fresh.district?.district_id || destination?.district_id || destination?.id || null,
             provinceName: fresh.district?.province || destination?.province || '',
             hotelId: fresh.hotel_place_id || null,
@@ -604,13 +615,14 @@ export default function TripDetails({ theme, toggleTheme }) {
   // SUCCESS STATE
   // ════════════════════════════════════════════════════════════
   if (submitted) {
+    const destinationImage = getDestinationImage(destination)
     return (
       <div className="td-page" data-theme={theme}>
         <div className="td-success-overlay">
           <div className="td-success-card">
-            {(destination?.image || destination?.images?.[0]) && (
+            {destinationImage && (
               <div className="td-success-banner">
-                <img src={destination.image || destination.images[0]} alt={destination.name} />
+                <img src={destinationImage} alt={destination.name} />
                 <div className="td-success-banner-fade" />
               </div>
             )}
@@ -747,9 +759,9 @@ export default function TripDetails({ theme, toggleTheme }) {
             <div className="td-context-strip">
               {destination && (
                 <div className="td-ctx-card">
-                  {(destination.image || destination.images?.[0]) ? (
+                  {getDestinationImage(destination) ? (
                     <img
-                      src={destination.image || destination.images[0]}
+                      src={getDestinationImage(destination)}
                       alt={destination.name}
                       className="td-ctx-img"
                       onError={e => { e.target.style.display = 'none' }}

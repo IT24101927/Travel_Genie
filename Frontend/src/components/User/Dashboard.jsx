@@ -169,6 +169,17 @@ function hotelImage(cat) {
   return HOTEL_IMAGES.default
 }
 
+function districtImageFromTrip(tripLike = {}, districtLike = {}) {
+  return (
+    tripLike.destinationImage ||
+    tripLike.image ||
+    tripLike.image_url ||
+    districtLike.image ||
+    districtLike.image_url ||
+    null
+  )
+}
+
 function symFor(code) {
   return DISPLAY_CURRENCIES.find(c => c.code === code)?.symbol ?? code
 }
@@ -417,6 +428,7 @@ export default function Dashboard({ theme, toggleTheme }) {
                 tripName: t.title,
                 destinationName: t.district?.name || localCopy.destinationName || 'Trip',
                 destinationCity: t.district?.province ? `${t.district.province} Province` : (localCopy.destinationCity || ''),
+                destinationImage: districtImageFromTrip(localCopy, t.district || {}),
                 destinationId: t.district?.district_id || localCopy.destinationId || null,
                 districtFrontendId: DISTRICT_NAME_TO_ID[t.district?.name] || localCopy.districtFrontendId || null,
                 provinceName: t.district?.province || localCopy.provinceName || '',
@@ -895,6 +907,7 @@ export default function Dashboard({ theme, toggleTheme }) {
       name: trip.destinationName,
       province: trip.provinceName || trip.destinationCity?.replace(' Province', ''),
       image: trip.destinationImage,
+      image_url: trip.destinationImage,
     }
     localStorage.setItem('selectedDistrict', JSON.stringify(minDist))
     // Seed places so district-explore page restores selections
