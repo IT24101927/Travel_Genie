@@ -434,7 +434,7 @@
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1024px) and (min-width: 769px) {
   .ptl-features-grid {
     grid-template-columns: repeat(2, 1fr);
   }

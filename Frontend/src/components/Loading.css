@@ -195,3 +195,41 @@
 [data-theme='dark'] .loading-message {
     color: #A3B8B0;
 }
+
+@media (max-width: 520px) {
+    .loading-content {
+        max-width: 320px;
+        padding: 1.5rem 1rem;
+    }
+
+    .app-title {
+        font-size: 1.6rem;
+    }
+
+    .loading-message {
+        font-size: 0.88rem;
+    }
+
+    .progress-bar {
+        width: 170px;
+    }
+
+    .blob-1 {
+        width: 320px;
+        height: 320px;
+        top: -120px;
+        left: -120px;
+    }
+
+    .blob-2 {
+        width: 280px;
+        height: 280px;
+        bottom: -120px;
+        right: -100px;
+    }
+
+    .blob-3 {
+        width: 220px;
+        height: 220px;
+    }
+}
