@@ -2530,6 +2530,26 @@ a.hp-contact-item:hover { color: #2563eb; }
   padding: 2px 8px;
 }
 
+.hp-card-weather {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  color: #0c4a6e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .hp-card-weather {
+  color: #93c5fd;
+  background: rgba(2, 132, 199, 0.14);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 /* Recommended grid — slightly smaller min-width so 4 fit on wide screens */
 .hp-grid--recommended {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

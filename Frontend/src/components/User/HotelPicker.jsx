@@ -147,6 +147,9 @@ const mapHotel = (h) => {
   const rawCategory = h.hotel_type || h.category || 'hotel'
   const starRating = h.star_class || h.starRating || 0
   const amenityList = parseAmenityList(h.amenities || h.amenities_list || h.amenity_names)
+  const weatherLabel = h.weather_label || h.weatherLabel || h.weather || ''
+  const rawTemperature = h.temperature ?? h.temp_c ?? h.tempC ?? null
+  const parsedTemperature = Number(rawTemperature)
 
   return {
     _id:         String(h.hotel_id || h.place_id),
@@ -168,6 +171,8 @@ const mapHotel = (h) => {
     place_id:    h.place_id,
     lat:         parseFloat(h.place?.lat) || parseFloat(h.hotel_proxy_lat) || parseFloat(h.lat) || parseFloat(h.nearbyPlace?.lat) || null,
     lng:         parseFloat(h.place?.lng) || parseFloat(h.hotel_proxy_lng) || parseFloat(h.lng) || parseFloat(h.nearbyPlace?.lng) || null,
+    weather_label: weatherLabel,
+    temperature: Number.isFinite(parsedTemperature) ? parsedTemperature : null,
   }
 }
 
@@ -341,6 +346,8 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
   const priceMin = rawMin !== null ? convertPrice(rawMin, displayCurrency) : '—'
   const priceMax = rawMax !== null ? convertPrice(rawMax, displayCurrency) : null
   const dbId = hotel.place_id ?? hotel.place?.place_id ?? null
+  const weatherInfo = weatherPresentation(hotel.weather_label)
+  const hasWeatherSignal = Boolean(hotel.weather_label) || hotel.temperature != null
 
   return (
     <div className={`hp-card-wrap${showReviews ? ' hp-card-wrap--open' : ''}${isSelected ? ' hp-card-wrap--selected' : ''}`}>
@@ -379,6 +386,12 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
               {hotel.recommendation_badges?.length > 0 && hotel.recommendation_badges.map(b => (
                 <span key={b} className="hp-reco-tag">{b}</span>
               ))}
+              {hasWeatherSignal && (
+                <span className="hp-card-weather">
+                  {weatherInfo.icon} {weatherInfo.label}
+                  {hotel.temperature != null ? ` · ${Math.round(Number(hotel.temperature))}°C` : ''}
+                </span>
+              )}
             </div>
           )}
           <div className="hp-card-head">
