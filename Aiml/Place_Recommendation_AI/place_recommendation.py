@@ -473,6 +473,7 @@ def score_recommendations(candidate_scores, place_data, users, user_id, district
 
 def fetch_weather(place_data):
     """Fetch current weather for each district using Open-Meteo."""
+    weather_timeout = float(os.environ.get("PLACE_WEATHER_TIMEOUT_SECONDS", "6"))
     district_centers = (
         place_data.dropna(subset=["lat", "lng"])
         .groupby(["district_id", "district_name"], as_index=False)
@@ -487,7 +488,7 @@ def fetch_weather(place_data):
             f"&current=temperature_2m,weather_code"
         )
         try:
-            res = requests.get(url, timeout=20)
+            res = requests.get(url, timeout=weather_timeout)
             if res.status_code == 200:
                 current = res.json().get("current", {})
                 temp = current.get("temperature_2m", np.nan)

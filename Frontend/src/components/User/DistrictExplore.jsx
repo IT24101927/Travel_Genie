@@ -315,6 +315,7 @@ function DistrictExplore({ theme, toggleTheme }) {
   const [aiRecommendations, setAiRecommendations] = useState([])
   const [aiLoading, setAiLoading] = useState(true)
   const [aiError, setAiError] = useState(null)
+  const [aiRetrySeq, setAiRetrySeq] = useState(0)
   const [userInterests] = useState(() => {
     try {
       const u = JSON.parse(localStorage.getItem('currentUser') || '{}')
@@ -370,76 +371,31 @@ function DistrictExplore({ theme, toggleTheme }) {
   }, [places.length, aiRecommendations.length, selectedPlaces.length, aiLoading, placesLoading])
 
   useEffect(() => {
-    const raw = localStorage.getItem('selectedDistrict')
-    if (!raw) { navigate('/plan-trip'); return }
-    const d = JSON.parse(raw)
-    // Fetch places from API
-    fetch(`${API_BASE}/destinations/district/${d.district_id}`)
+    if (!district?.district_id) { navigate('/plan-trip'); return }
+
+    setPlacesLoading(true)
+    fetch(`${API_BASE}/destinations/district/${district.district_id}`)
       .then(r => r.json())
       .then(json => {
         if (json.success && Array.isArray(json.data)) {
           setPlaces(json.data.map(p => ({
-            id:          String(p.place_id),
-            place_id:    p.place_id,
-            name:        p.name,
-            type:        p.type || '',
-            duration:    p.duration || '',
+            id: String(p.place_id),
+            place_id: p.place_id,
+            name: p.name,
+            type: p.type || '',
+            duration: p.duration || '',
             description: p.description || '',
-            image:       p.image_url || p.images?.[0]?.image_url || '',
-            tags:        Array.isArray(p.tags) ? p.tags.map(t => t.tag_name).filter(Boolean) : [],
-            rating:      Number(p.rating || 0),
-            lat:         p.lat  ? parseFloat(p.lat)  : null,
-            lng:         p.lng  ? parseFloat(p.lng)  : null,
+            image: p.image_url || p.images?.[0]?.image_url || '',
+            tags: Array.isArray(p.tags) ? p.tags.map(t => t.tag_name).filter(Boolean) : [],
+            rating: Number(p.rating || 0),
+            lat: p.lat ? parseFloat(p.lat) : null,
+            lng: p.lng ? parseFloat(p.lng) : null,
           })))
         }
       })
       .catch(() => {})
       .finally(() => setPlacesLoading(false))
 
-    // Fetch AI recommendations
-    const token = localStorage.getItem('token')
-    if (token && d.district_id) {
-      setAiLoading(true)
-      fetch(`${API_BASE}/places/ai-recommend?district_id=${d.district_id}&top_n=10`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.json())
-        .then(json => {
-          if (json.success && Array.isArray(json.recommendations) && json.recommendations.length > 0) {
-            setAiRecommendations(json.recommendations.map(p => {
-              // Convert numeric duration_hours back to a readable string
-              const durationHrs = Number(p.duration_hours || 0)
-              const durationStr = durationHrs >= 8 ? 'Full day'
-                : durationHrs >= 4 ? 'Half day'
-                : durationHrs > 0  ? `${durationHrs} hrs`
-                : ''
-              return {
-                id:          String(p.place_id),
-                place_id:    p.place_id,
-                name:        p.place_name || '',
-                type:        p.type || '',
-                duration:    durationStr,
-                description: p.place_description || '',
-                image:       p.image_url || '',
-                tags:        p.tag_names ? p.tag_names.split(',').map(t => t.trim()).filter(Boolean) : [],
-                rating:      Number(p.rating || 0),
-                lat:         p.lat  ? parseFloat(p.lat)  : null,
-                lng:         p.lng  ? parseFloat(p.lng)  : null,
-                aiScore:     p.weather_adjusted_score || p.final_score || 0,
-                aiReason:    p.match_reason || '',
-                aiWeather:   p.weather_label || '',
-                temperature: p.temperature || null,
-              }
-            }))
-          } else {
-            setAiError('no-data')
-          }
-        })
-        .catch(() => setAiError('unavailable'))
-        .finally(() => setAiLoading(false))
-    } else {
-      setAiLoading(false)
-    }
     // Restore previously selected places (e.g. when editing a trip)
     const savedPlaces = localStorage.getItem('selectedPlaces')
     if (savedPlaces) {
@@ -447,12 +403,12 @@ function DistrictExplore({ theme, toggleTheme }) {
         queueMicrotask(() => setSelectedPlaces(JSON.parse(savedPlaces)))
       } catch { /* ignore */ }
     }
-    // Scroll to a specific saved place if requested
+
     const scrollTarget = localStorage.getItem('scrollToPlace')
     if (scrollTarget) {
       localStorage.removeItem('scrollToPlace')
       setTimeout(() => {
-        const el = document.getElementById(`place-card-${d.id}_${scrollTarget}`)
+        const el = document.getElementById(`place-card-${district.id}_${scrollTarget}`)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
           el.classList.add('de-place-highlight')
@@ -460,7 +416,94 @@ function DistrictExplore({ theme, toggleTheme }) {
         }
       }, 350)
     }
-  }, [navigate])
+  }, [navigate, district])
+
+  useEffect(() => {
+    if (!district?.district_id) {
+      setAiLoading(false)
+      return
+    }
+
+    const token = localStorage.getItem('token')
+    if (!token) {
+      setAiRecommendations([])
+      setAiError('unauthorized')
+      setAiLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000)
+
+    setAiLoading(true)
+    setAiError(null)
+
+    fetch(`${API_BASE}/places/ai-recommend?district_id=${district.district_id}&top_n=10`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        let json = {}
+        try {
+          json = await response.json()
+        } catch {
+          json = {}
+        }
+
+        if (!response.ok || !json.success) {
+          throw new Error(json.message || 'AI request failed')
+        }
+
+        const recommendations = Array.isArray(json.recommendations) ? json.recommendations : []
+        if (recommendations.length === 0) {
+          setAiRecommendations([])
+          setAiError('no-data')
+          return
+        }
+
+        setAiRecommendations(recommendations.map((p) => {
+          const durationHrs = Number(p.duration_hours || 0)
+          const durationStr = durationHrs >= 8 ? 'Full day'
+            : durationHrs >= 4 ? 'Half day'
+            : durationHrs > 0 ? `${durationHrs} hrs`
+            : ''
+          return {
+            id: String(p.place_id),
+            place_id: p.place_id,
+            name: p.place_name || '',
+            type: p.type || '',
+            duration: durationStr,
+            description: p.place_description || '',
+            image: p.image_url || '',
+            tags: p.tag_names ? p.tag_names.split(',').map(t => t.trim()).filter(Boolean) : [],
+            rating: Number(p.rating || 0),
+            lat: p.lat ? parseFloat(p.lat) : null,
+            lng: p.lng ? parseFloat(p.lng) : null,
+            aiScore: p.weather_adjusted_score || p.final_score || 0,
+            aiReason: p.match_reason || '',
+            aiWeather: p.weather_label || '',
+            temperature: p.temperature || null,
+          }
+        }))
+      })
+      .catch((error) => {
+        setAiRecommendations([])
+        if (error?.name === 'AbortError') {
+          setAiError('timeout')
+          return
+        }
+        setAiError('unavailable')
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        setAiLoading(false)
+      })
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [district, aiRetrySeq])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -517,6 +560,7 @@ function DistrictExplore({ theme, toggleTheme }) {
     )
 
   const matchedVisibleCount = visiblePlaces.filter((p) => p.matchScore > 0).length
+  const aiTopCount = aiRecommendations.length > 0 ? aiRecommendations.length : 10
 
   const togglePlace = (place) => {
     const isSelected = selectedPlaces.find(p => p.id === place.id)
@@ -574,6 +618,10 @@ function DistrictExplore({ theme, toggleTheme }) {
     localStorage.setItem('selectedDistrict', JSON.stringify(district))
     localStorage.setItem('selectedPlaces', JSON.stringify(selectedPlaces))
     navigate('/trip-preferences')
+  }
+
+  const retryAiRecommendations = () => {
+    setAiRetrySeq((value) => value + 1)
   }
 
   /* ── Map pins ── */
@@ -815,6 +863,16 @@ function DistrictExplore({ theme, toggleTheme }) {
                 {showMatchesOnly && hasInterestSignals
                   ? 'No places matched your interests in this filter. Try turning off match-only.'
                   : (searchNeedle ? 'No places match your search in this district.' : 'No places found for this district yet.')}
+                {showMatchesOnly && hasInterestSignals && (
+                  <button
+                    type="button"
+                    className="de-match-toggle"
+                    onClick={() => setShowMatchesOnly(false)}
+                    style={{ marginLeft: '12px' }}
+                  >
+                    Show all places
+                  </button>
+                )}
               </p>
             ) : visiblePlaces.map(place => (
               <PlaceCard
@@ -883,8 +941,7 @@ function DistrictExplore({ theme, toggleTheme }) {
         <aside className="de-right-panel" ref={dePanelRef} onClick={e => e.stopPropagation()}>
 
           {/* AI Recommendations carousel */}
-          {(aiLoading || aiRecommendations.length > 0) && (
-            <div className="de-ai-section de-ai-panel">
+          <div className="de-ai-section de-ai-panel">
               <div className="de-ai-section-header">
                 <div className="de-ai-title-group">
                   <span className="de-ai-icon">🤖</span>
@@ -895,10 +952,13 @@ function DistrictExplore({ theme, toggleTheme }) {
                 {!aiLoading && aiRecommendations.length > 0 && (
                   <span className="de-ai-badge">{aiRecommendations.length} picks</span>
                 )}
+                {!aiLoading && aiRecommendations.length === 0 && aiError && (
+                  <span className="de-ai-badge de-ai-badge--warn">AI unavailable</span>
+                )}
               </div>
               <p className="de-ai-desc">
                 <span className="de-ai-desc-dot" />
-                Top {aiLoading ? '10' : aiRecommendations.length} places ranked by our system — scored on your travel interests, preferred types, and live weather compatibility for <strong>{district.name}</strong>.
+                Top {aiLoading ? '10' : aiTopCount} places ranked by our system — scored on your travel interests, preferred types, and live weather compatibility for <strong>{district.name}</strong>.
               </p>
 
               {aiLoading ? (
@@ -913,6 +973,24 @@ function DistrictExplore({ theme, toggleTheme }) {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : aiRecommendations.length === 0 ? (
+                <div className="de-ai-empty">
+                  <p className="de-ai-empty-text">
+                    {aiError === 'timeout' && 'AI is taking too long right now. Showing normal places while we retry.'}
+                    {aiError === 'unauthorized' && 'Please log in again to load AI picks.'}
+                    {aiError === 'no-data' && 'No AI picks returned for this district yet. You can still continue with all places.'}
+                    {!aiError && 'No AI picks are available right now. You can still continue with all places.'}
+                  </p>
+                  {aiError !== 'unauthorized' && (
+                    <button
+                      type="button"
+                      className="de-ai-retry-btn"
+                      onClick={retryAiRecommendations}
+                    >
+                      Retry AI picks
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="de-ai-carousel">
@@ -1009,8 +1087,7 @@ function DistrictExplore({ theme, toggleTheme }) {
                   })}
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           {/* Map panel */}
           <div className="de-map-panel">

@@ -8,9 +8,16 @@ const Place = require('../models/Place')
 const Tag = require('../../tagManagement/models/Tag')
 const UserInterest = require('../../userManagement/models/UserInterest')
 
-const AI_BASE_URL = process.env.AI_BASE_URL || ''
+const normalizeAiBaseUrl = (rawValue) => {
+  const raw = String(rawValue || '').trim()
+  if (!raw) return ''
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  return withProtocol.replace(/\/+$/, '')
+}
+
+const AI_BASE_URL = normalizeAiBaseUrl(process.env.AI_BASE_URL)
 const AI_HOST = process.env.AI_HOST || 'localhost'
-const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || '5001', 10)
+const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
 const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '12000', 10)
 const PLACE_AI_CACHE_TTL_MS = parseInt(process.env.PLACE_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
@@ -133,17 +140,21 @@ const buildFallbackRecommendations = async ({ userId, districtId, topN, reason }
 
 const resolveAiTarget = (path, timeout) => {
   if (AI_BASE_URL) {
-    const base = new URL(AI_BASE_URL)
-    const prefix = base.pathname && base.pathname !== '/' ? base.pathname.replace(/\/$/, '') : ''
-    return {
-      client: base.protocol === 'https:' ? https : http,
-      options: {
-        protocol: base.protocol,
-        hostname: base.hostname,
-        port: base.port || (base.protocol === 'https:' ? 443 : 80),
-        path: `${prefix}${path}`,
-        timeout,
-      },
+    try {
+      const base = new URL(AI_BASE_URL)
+      const prefix = base.pathname && base.pathname !== '/' ? base.pathname.replace(/\/$/, '') : ''
+      return {
+        client: base.protocol === 'https:' ? https : http,
+        options: {
+          protocol: base.protocol,
+          hostname: base.hostname,
+          port: base.port || (base.protocol === 'https:' ? 443 : 80),
+          path: `${prefix}${path}`,
+          timeout,
+        },
+      }
+    } catch {
+      // Fall back to host/port mode when AI_BASE_URL is malformed.
     }
   }
 
