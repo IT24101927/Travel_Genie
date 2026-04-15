@@ -159,7 +159,7 @@ function Home({ theme, toggleTheme }) {
   const [destCount, destRef]    = useCountUp(destTotal)
   const [hotelCount, hotelRef]  = useCountUp(hotelTotal)
   const [revCount, revRef]      = useCountUp(reviewTotal)
-  const [yearCount, yearRef]    = useCountUp(10)
+  const [districtCount, districtRef] = useCountUp(25)
 
   const features = [
     { icon: '🏛️', title: 'Cultural Heritage',   description: 'Explore UNESCO World Heritage Sites, ancient kingdoms, and sacred temples across the island.' },
@@ -245,21 +245,21 @@ function Home({ theme, toggleTheme }) {
             Discover<br /><span className="gradient-text">Sri Lanka</span>
           </h1>
           <p className="hero-description">
-            Ancient ruins, misty tea hills, golden beaches, and rich wildlife — 
-            experience the magic of Sri Lanka with expertly curated tour packages.
+            Plan complete Sri Lanka trips with one platform: choose districts,
+            discover places, pick hotels, set budgets, and track expenses.
           </p>
           <div className="hero-buttons">
-            <button className="btn-primary glow" onClick={() => navigate('/tours')}>View All Tours</button>
-            <button className="btn-outline-light">▶ Watch Video</button>
+            <button className="btn-primary glow" onClick={() => navigate('/tours')}>Browse Destinations</button>
+            <button className="btn-outline-light" onClick={() => navigate('/plan-trip-landing')}>Plan a Trip</button>
           </div>
 
           {/* Glass search bar */}
           <div className="hero-search glass-card">
             <div className="search-field">
-              <label>Destination</label>
+              <label>Place or District</label>
               <input
                 type="text"
-                placeholder="Where to?"
+                placeholder="Search Sri Lanka places"
                 value={searchQ}
                 onChange={e => setSearchQ(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -278,7 +278,7 @@ function Home({ theme, toggleTheme }) {
                 <option value="4">4+ Guests</option>
               </select>
             </div>
-            <button className="btn-primary search-btn" onClick={handleSearch}>Search</button>
+            <button className="btn-primary search-btn" onClick={handleSearch}>Find Places</button>
           </div>
         </div>
       </section>
@@ -295,8 +295,8 @@ function Home({ theme, toggleTheme }) {
           <div className="stat-item glass-card" ref={revRef}>
             <h3>{revCount}+</h3><p>Reviews</p>
           </div>
-          <div className="stat-item glass-card" ref={yearRef}>
-            <h3>{yearCount}+</h3><p>Years Experience</p>
+          <div className="stat-item glass-card" ref={districtRef}>
+            <h3>{districtCount}</h3><p>Districts Covered</p>
           </div>
         </div>
       </section>
@@ -333,38 +333,38 @@ function Home({ theme, toggleTheme }) {
           <div className="platform-grid">
             <div className="platform-card glass-card">
               <div className="platform-icon">🗺️</div>
-              <h3>AI Trip Planner</h3>
-              <p>Tell our AI where you want to go, your budget and interests — it builds a complete day-by-day itinerary for you automatically.</p>
-              <span className="platform-tag">Powered by AI</span>
+              <h3>6-Step Trip Planner</h3>
+              <p>Follow a guided flow from district selection to trip confirmation with your places, hotels, and budget in one itinerary.</p>
+              <span className="platform-tag">Structured Planning</span>
             </div>
             <div className="platform-card glass-card">
               <div className="platform-icon">🧠</div>
-              <h3>Smart Recommendations</h3>
-              <p>Get personalised destination and hotel suggestions based on your travel style, past trips and real-time ratings.</p>
-              <span className="platform-tag">Personalised</span>
+              <h3>AI Recommendations</h3>
+              <p>Get personalised place, hotel, and budget guidance using your preferences, district context, and live platform data.</p>
+              <span className="platform-tag">AI Assisted</span>
             </div>
             <div className="platform-card glass-card">
               <div className="platform-icon">📋</div>
               <h3>Trip Management</h3>
-              <p>Save and manage multiple trip itineraries, add notes, track progress and share plans with your travel companions.</p>
+              <p>Save and update multiple itineraries, manage notes and dates, and keep all selected places and hotels tied to each trip.</p>
               <span className="platform-tag">Organised</span>
             </div>
             <div className="platform-card glass-card">
               <div className="platform-icon">💸</div>
               <h3>Expense Tracker</h3>
-              <p>Log every spend by category — food, transport, activities — and see a clear budget breakdown for each trip in real time.</p>
+              <p>Log estimated and actual expenses by category and compare spending against trip budgets with notification support.</p>
               <span className="platform-tag">Budget Smart</span>
             </div>
             <div className="platform-card glass-card">
               <div className="platform-icon">🏨</div>
-              <h3>Hotel Booking</h3>
-              <p>Browse curated hotels and resorts across Sri Lanka, compare prices and star ratings, and add them straight to your itinerary.</p>
-              <span className="platform-tag">Curated Stays</span>
+              <h3>Hotel Selection</h3>
+              <p>Compare hotels by type, star class, and location, then add selected stays directly into your trip workflow.</p>
+              <span className="platform-tag">Integrated Stays</span>
             </div>
             <div className="platform-card glass-card">
               <div className="platform-icon">⭐</div>
               <h3>Reviews & Feedback</h3>
-              <p>Read honest traveller reviews, leave your own ratings, and help the community discover the best hidden gems on the island.</p>
+              <p>Read and post reviews with ratings for places and hotels, helping future travelers make better planning decisions.</p>
               <span className="platform-tag">Community</span>
             </div>
           </div>
@@ -434,7 +434,7 @@ function Home({ theme, toggleTheme }) {
                         onError={(e) => { e.target.onerror = null; e.target.src = placeholderImg }}
                       />
                       {hotel.price_per_night && (
-                        <span className="package-price glass-badge">${Number(hotel.price_per_night).toFixed(0)}/night</span>
+                        <span className="package-price glass-badge">LKR {Number(hotel.price_per_night).toFixed(0)}/night</span>
                       )}
                       <span className="package-tag glass-badge">{hotel.hotel_type || 'Hotel'}</span>
                     </div>
@@ -485,7 +485,7 @@ function Home({ theme, toggleTheme }) {
         <div className="container">
           <div className="section-header">
             <span className="section-subtitle">Traveler Stories</span>
-            <h2 className="section-title">What Our Guests <span className="gradient-text">Are Saying</span></h2>
+            <h2 className="section-title">What Travelers <span className="gradient-text">Are Saying</span></h2>
           </div>
           <div className="testimonials-grid">
             {reviews.length === 0
@@ -517,8 +517,8 @@ function Home({ theme, toggleTheme }) {
       <section className="newsletter-section reveal-section" ref={revNews}>
         <div className="container">
           <div className="newsletter-glass glass-card">
-            <h2>Get <span className="gradient-text">Sri Lanka</span> Travel Updates</h2>
-            <p>Receive exclusive deals, seasonal guides, and hidden gem recommendations for Sri Lanka</p>
+            <h2>Get <span className="gradient-text">TravelGenie</span> Updates</h2>
+            <p>Stay updated with new districts, destination highlights, and planning improvements across the platform.</p>
             <div className="newsletter-form">
               <input type="email" placeholder="Enter your email address" />
               <button className="btn-primary glow">Subscribe</button>
@@ -544,20 +544,20 @@ function Home({ theme, toggleTheme }) {
             <div className="footer-col">
               <h4>Quick Links</h4>
               <ul>
-                <li><a href="#about">About Us</a></li>
-                <li><a href="#contact">Contact</a></li>
-                <li><a href="#blog">Blog</a></li>
-                <li><a href="#faq">FAQs</a></li>
-                <li><a href="#careers">Careers</a></li>
+                <li><Link to="/">Home</Link></li>
+                <li><Link to="/tours">Destinations</Link></li>
+                <li><Link to="/hotels">Hotels</Link></li>
+                <li><Link to="/plan-trip-landing">Plan a Trip</Link></li>
+                <li><Link to="/login">Log In</Link></li>
               </ul>
             </div>
             <div className="footer-col">
-              <h4>Explore</h4>
+              <h4>Platform</h4>
               <ul>
-                <li><a href="#account">Account</a></li>
-                <li><a href="#privacy">Privacy Policy</a></li>
-                <li><a href="#affiliate">Affiliate Program</a></li>
-                <li><a href="#partners">Our Partners</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#destinations">Top Destinations</a></li>
+                <li><a href="#hotels">Featured Hotels</a></li>
+                <li><a href="#reviews">Traveler Reviews</a></li>
               </ul>
             </div>
             <div className="footer-col">

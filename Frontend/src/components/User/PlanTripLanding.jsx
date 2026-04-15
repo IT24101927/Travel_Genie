@@ -13,7 +13,7 @@ const STEPS = [
     icon: '🗺️',
     step: '02',
     title: 'Explore Places',
-    desc:  'Browse 4,270+ destinations — beaches, temples, wildlife parks, viewpoints, and more — filtered by your interests.',
+    desc:  'Browse destinations by district with maps, ratings, and categories such as beaches, temples, nature, and heritage sites.',
   },
   {
     icon: '🏨',
@@ -31,7 +31,7 @@ const STEPS = [
     icon: '📅',
     step: '05',
     title: 'Build Your Itinerary',
-    desc:  'Create a day-by-day schedule, add activities, set notes, and share your trip with travel companions.',
+    desc:  'Finalize trip details, dates, and notes so your selected places, stay, and budget are saved together.',
   },
   {
     icon: '✅',
@@ -42,10 +42,10 @@ const STEPS = [
 ]
 
 const HIGHLIGHTS = [
-  { icon: '🌴', label: '4,270+ Destinations' },
-  { icon: '🏨', label: 'Curated Hotels' },
-  { icon: '💳', label: 'Expense Tracker' },
-  { icon: '👥', label: 'Trip Planning' },
+  { icon: '🇱🇰', label: '25 Districts' },
+  { icon: '🧭', label: '6-Step Planner' },
+  { icon: '🧠', label: 'AI Recommendations' },
+  { icon: '💳', label: 'Expense Tracking' },
   { icon: '🗺️', label: 'Interactive Maps' },
   { icon: '⭐', label: 'Reviews & Ratings' },
 ]
@@ -189,19 +189,19 @@ export default function PlanTripLanding({ theme, toggleTheme }) {
               <p>Visualise your trip with an interactive map of all 25 districts. See popular places, distances, and connections at a glance before you commit.</p>
             </div>
             <div className="ptl-feature-card">
+              <div className="ptl-feature-icon">🧠</div>
+              <h3>AI-Assisted Suggestions</h3>
+              <p>Receive AI-backed recommendations for places, hotels, and budget splits tailored to your trip context.</p>
+            </div>
+            <div className="ptl-feature-card">
               <div className="ptl-feature-icon">📅</div>
-              <h3>Day-by-Day Itinerary</h3>
-              <p>Plan each day with custom activities, timings, and notes. Reorder and edit anytime.</p>
+              <h3>Trip Itinerary Details</h3>
+              <p>Save trip names, dates, notes, selected places, and hotel choices in a single itinerary record.</p>
             </div>
             <div className="ptl-feature-card">
               <div className="ptl-feature-icon">💰</div>
               <h3>Budget Planner</h3>
               <p>Set a total budget, split it by category, and track actual spending as you go.</p>
-            </div>
-            <div className="ptl-feature-card">
-              <div className="ptl-feature-icon">👥</div>
-              <h3>Trip Sharing</h3>
-              <p>Invite travel companions to view or collaborate on your trip plan in real time.</p>
             </div>
             <div className="ptl-feature-card">
               <div className="ptl-feature-icon">🏨</div>

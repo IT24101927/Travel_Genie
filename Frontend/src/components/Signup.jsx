@@ -469,30 +469,30 @@ function Signup({ theme, toggleTheme }) {
         <div className="sg-hero">
           <div className="sg-eyebrow">
             <span className="sg-eyebrow-dot" />
-            Sri Lanka&apos;s #1 Travel Platform
+            AI-Assisted Sri Lanka Trip Planner
           </div>
           <h1>Your Next<br />Adventure<br /><em>Starts Here</em></h1>
-          <p>Discover curated itineraries, seamless bookings, and experiences crafted just for you — all in one place.</p>
+          <p>Create your account to unlock district-based planning, smart recommendations, and expense tracking in one workflow.</p>
 
           <div className="sg-stats">
             <div className="sg-stat">
-              <span className="sg-stat-num">10<span>K+</span></span>
-              <span className="sg-stat-label">Travelers</span>
+              <span className="sg-stat-num">25</span>
+              <span className="sg-stat-label">Districts</span>
             </div>
             <div className="sg-stat">
-              <span className="sg-stat-num">200<span>+</span></span>
-              <span className="sg-stat-label">Destinations</span>
+              <span className="sg-stat-num">6</span>
+              <span className="sg-stat-label">Planning Steps</span>
             </div>
             <div className="sg-stat">
-              <span className="sg-stat-num">4.9<span>★</span></span>
-              <span className="sg-stat-label">Avg Rating</span>
+              <span className="sg-stat-num">3</span>
+              <span className="sg-stat-label">AI Engines</span>
             </div>
           </div>
         </div>
 
         <div className="sg-testimonial">
           <div className="sg-testimonial-quote">&ldquo;</div>
-          <blockquote>TravelGenie turned my dream Sri Lanka trip into a flawless reality — every detail, perfectly handled.</blockquote>
+          <blockquote>From district selection to trip details, TravelGenie kept my entire plan organized and easy to manage.</blockquote>
           <div className="sg-testimonial-author">
             <div className="sg-avatar">S</div>
             <div className="sg-author-info">

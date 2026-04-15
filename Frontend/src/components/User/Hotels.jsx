@@ -201,7 +201,7 @@ export default function Hotels({ theme, toggleTheme }) {
         <div className="tours-hero-content">
           <p className="tours-hero-tag">🏨 Where to Stay</p>
           <h1>Featured <span className="gradient-text">Hotels</span></h1>
-          <p>Browse {total > 0 ? `${total}+` : 'hundreds of'} hotels, resorts & villas across Sri Lanka</p>
+          <p>Compare stays by district, type, stars, and ratings before adding your picks to trip planning.</p>
 
           <div className="tours-search glass-card">
             <div className="tours-search-field">

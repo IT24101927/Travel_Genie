@@ -247,7 +247,7 @@ export default function Tours({ theme, toggleTheme }) {
         <div className="tours-hero-content">
           <p className="tours-hero-tag">🌴 Explore Sri Lanka</p>
           <h1>All <span className="gradient-text">Destinations</span></h1>
-          <p>Discover {total > 0 ? `${total}+` : 'hundreds of'} breathtaking destinations across the island</p>
+          <p>Browse {total > 0 ? `${total}+` : 'all'} destinations by district, category, rating, and map context.</p>
 
           {/* Search bar */}
           <div className="tours-search glass-card">

@@ -134,21 +134,21 @@ function ResetPassword({ theme, toggleTheme }) {
             <em>New Password</em>
           </h1>
           <p>
-            Choose a strong password to keep your TravelGenie account safe and secure.
+            Choose a strong password to secure your TravelGenie account before returning to your saved trips.
           </p>
 
           <div className="lg-stats">
             <div className="lg-stat">
-              <span className="lg-stat-num">256<span>-bit</span></span>
-              <span className="lg-stat-label">Encrypted</span>
+              <span className="lg-stat-num">6</span>
+              <span className="lg-stat-label">Digit OTP Verified</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">100<span>%</span></span>
-              <span className="lg-stat-label">Secure</span>
+              <span className="lg-stat-num">8<span>+</span></span>
+              <span className="lg-stat-label">Char Password Rule</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">0<span>s</span></span>
-              <span className="lg-stat-label">Downtime</span>
+              <span className="lg-stat-num">1</span>
+              <span className="lg-stat-label">Secure Reset Flow</span>
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ function ResetPassword({ theme, toggleTheme }) {
         <div className="lg-testimonial">
           <div className="lg-testimonial-quote">"</div>
           <blockquote>
-            Super smooth reset experience. Back exploring Sri Lanka's hidden gems within minutes!
+            Reset was straightforward and secure. I could quickly continue planning my Sri Lanka itinerary.
           </blockquote>
           <div className="lg-testimonial-author">
             <div className="lg-avatar">N</div>

@@ -133,21 +133,21 @@ function ForgotPassword({ theme, toggleTheme }) {
             <em>Password</em>
           </h1>
           <p>
-            No worries — it happens to the best of us. We'll send you a secure link to get back on track in seconds.
+            We will send a secure 6-digit verification code to your email so you can set a new password.
           </p>
 
           <div className="lg-stats">
             <div className="lg-stat">
-              <span className="lg-stat-num">60<span>s</span></span>
-              <span className="lg-stat-label">Quick Reset</span>
+              <span className="lg-stat-num">6</span>
+              <span className="lg-stat-label">Digit OTP</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">256<span>-bit</span></span>
-              <span className="lg-stat-label">Encrypted</span>
+              <span className="lg-stat-num">2</span>
+              <span className="lg-stat-label">Step Verification</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">24<span>h</span></span>
-              <span className="lg-stat-label">Link Valid</span>
+              <span className="lg-stat-num">100<span>%</span></span>
+              <span className="lg-stat-label">Account Control</span>
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@ function ForgotPassword({ theme, toggleTheme }) {
         <div className="lg-testimonial">
           <div className="lg-testimonial-quote">"</div>
           <blockquote>
-            Got back into my account in under a minute. The reset process was smooth and hassle-free!
+            The OTP reset flow was quick and clear. I was back to my trip dashboard in minutes.
           </blockquote>
           <div className="lg-testimonial-author">
             <div className="lg-avatar">K</div>

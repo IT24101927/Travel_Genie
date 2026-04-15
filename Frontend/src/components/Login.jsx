@@ -137,21 +137,22 @@ function Login({ theme, toggleTheme }) {
             Back, <em>Explorer</em>
           </h1>
           <p>
-            Sign in to continue discovering the breathtaking beauty of Sri Lanka — from misty highlands to golden shores.
+            Sign in to continue your Sri Lanka trip planning workflow with saved itineraries,
+            destination picks, hotel choices, and budget tracking.
           </p>
 
           <div className="lg-stats">
             <div className="lg-stat">
-              <span className="lg-stat-num">50<span>+</span></span>
-              <span className="lg-stat-label">Destinations</span>
+              <span className="lg-stat-num">25</span>
+              <span className="lg-stat-label">Districts</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">8<span>K+</span></span>
-              <span className="lg-stat-label">Travellers</span>
+              <span className="lg-stat-num">6</span>
+              <span className="lg-stat-label">Planning Steps</span>
             </div>
             <div className="lg-stat">
-              <span className="lg-stat-num">4.9<span>★</span></span>
-              <span className="lg-stat-label">Rating</span>
+              <span className="lg-stat-num">3</span>
+              <span className="lg-stat-label">AI Services</span>
             </div>
           </div>
         </div>
@@ -159,7 +160,7 @@ function Login({ theme, toggleTheme }) {
         <div className="lg-testimonial">
           <div className="lg-testimonial-quote">"</div>
           <blockquote>
-            TravelGenie made planning my Sri Lanka trip effortless. The itineraries were spot-on and the hotel picks were perfect!
+            TravelGenie made my planning smooth from district selection to budget tracking. Everything stayed in one place.
           </blockquote>
           <div className="lg-testimonial-author">
             <div className="lg-avatar">A</div>
