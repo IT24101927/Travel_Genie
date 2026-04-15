@@ -432,17 +432,63 @@ function DistrictExplore({ theme, toggleTheme }) {
       return
     }
 
-    const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => controller.abort(), 12000)
+    let cancelled = false
+    let activeController = null
+    let timeoutId = null
+    let retryDelayId = null
 
-    setAiLoading(true)
-    setAiError(null)
+    const mapRecommendation = (p) => {
+      const durationHrs = Number(p.duration_hours || 0)
+      const durationStr = durationHrs >= 8 ? 'Full day'
+        : durationHrs >= 4 ? 'Half day'
+        : durationHrs > 0 ? `${durationHrs} hrs`
+        : ''
+      return {
+        id: String(p.place_id),
+        place_id: p.place_id,
+        name: p.place_name || '',
+        type: p.type || '',
+        duration: durationStr,
+        description: p.place_description || '',
+        image: p.image_url || '',
+        tags: p.tag_names ? p.tag_names.split(',').map(t => t.trim()).filter(Boolean) : [],
+        rating: Number(p.rating || 0),
+        lat: p.lat ? parseFloat(p.lat) : null,
+        lng: p.lng ? parseFloat(p.lng) : null,
+        aiScore: p.weather_adjusted_score || p.final_score || 0,
+        aiReason: p.match_reason || '',
+        aiWeather: p.weather_label || '',
+        temperature: p.temperature || null,
+      }
+    }
 
-    fetch(`${API_BASE}/places/ai-recommend?district_id=${district.district_id}&top_n=10`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
+    const fetchAi = async (attempt = 0) => {
+      if (cancelled) return
+
+      if (attempt === 0) {
+        setAiLoading(true)
+        setAiError(null)
+      }
+
+      const timeoutMs = attempt === 0 ? 30000 : 20000
+      activeController = new AbortController()
+      timeoutId = window.setTimeout(() => activeController?.abort(), timeoutMs)
+
+      try {
+        const query = new URLSearchParams({
+          district_id: String(district.district_id),
+          top_n: '10',
+          _retry: String(aiRetrySeq),
+          _attempt: String(attempt),
+          _ts: String(Date.now()),
+        })
+
+        const response = await fetch(`${API_BASE}/places/ai-recommend?${query.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: activeController.signal,
+          cache: 'no-store',
+        })
+
         let json = {}
         try {
           json = await response.json()
@@ -458,52 +504,46 @@ function DistrictExplore({ theme, toggleTheme }) {
         if (recommendations.length === 0) {
           setAiRecommendations([])
           setAiError('no-data')
+          setAiLoading(false)
           return
         }
 
-        setAiRecommendations(recommendations.map((p) => {
-          const durationHrs = Number(p.duration_hours || 0)
-          const durationStr = durationHrs >= 8 ? 'Full day'
-            : durationHrs >= 4 ? 'Half day'
-            : durationHrs > 0 ? `${durationHrs} hrs`
-            : ''
-          return {
-            id: String(p.place_id),
-            place_id: p.place_id,
-            name: p.place_name || '',
-            type: p.type || '',
-            duration: durationStr,
-            description: p.place_description || '',
-            image: p.image_url || '',
-            tags: p.tag_names ? p.tag_names.split(',').map(t => t.trim()).filter(Boolean) : [],
-            rating: Number(p.rating || 0),
-            lat: p.lat ? parseFloat(p.lat) : null,
-            lng: p.lng ? parseFloat(p.lng) : null,
-            aiScore: p.weather_adjusted_score || p.final_score || 0,
-            aiReason: p.match_reason || '',
-            aiWeather: p.weather_label || '',
-            temperature: p.temperature || null,
-          }
-        }))
-      })
-      .catch((error) => {
-        setAiRecommendations([])
-        if (error?.name === 'AbortError') {
-          setAiError('timeout')
+        setAiRecommendations(recommendations.map(mapRecommendation))
+        setAiError(null)
+        setAiLoading(false)
+      } catch (error) {
+        if (cancelled) return
+
+        const isTimeout = error?.name === 'AbortError'
+        const canRetry = attempt < 2
+
+        if (canRetry) {
+          retryDelayId = window.setTimeout(() => {
+            fetchAi(attempt + 1)
+          }, 1200 * (attempt + 1))
           return
         }
-        setAiError('unavailable')
-      })
-      .finally(() => {
-        window.clearTimeout(timeoutId)
+
+        setAiRecommendations([])
+        setAiError(isTimeout ? 'timeout' : 'unavailable')
         setAiLoading(false)
-      })
+      } finally {
+        if (timeoutId) {
+          window.clearTimeout(timeoutId)
+          timeoutId = null
+        }
+      }
+    }
+
+    fetchAi(0)
 
     return () => {
-      window.clearTimeout(timeoutId)
-      controller.abort()
+      cancelled = true
+      if (timeoutId) window.clearTimeout(timeoutId)
+      if (retryDelayId) window.clearTimeout(retryDelayId)
+      if (activeController) activeController.abort()
     }
-  }, [district, aiRetrySeq])
+  }, [district?.district_id, aiRetrySeq])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -621,6 +661,9 @@ function DistrictExplore({ theme, toggleTheme }) {
   }
 
   const retryAiRecommendations = () => {
+    if (aiLoading) return
+    setAiLoading(true)
+    setAiError(null)
     setAiRetrySeq((value) => value + 1)
   }
 

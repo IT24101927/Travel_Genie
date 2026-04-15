@@ -18,7 +18,7 @@ const normalizeAiBaseUrl = (rawValue) => {
 const AI_BASE_URL = normalizeAiBaseUrl(process.env.AI_BASE_URL)
 const AI_HOST = process.env.AI_HOST || 'localhost'
 const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
-const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '12000', 10)
+const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '20000', 10)
 const PLACE_AI_CACHE_TTL_MS = parseInt(process.env.PLACE_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
 
