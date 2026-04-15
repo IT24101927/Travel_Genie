@@ -354,6 +354,10 @@
   border-color: #0E7C5F;
   box-shadow: 0 0 0 3px rgba(14,124,95,0.12);
 }
+.tb-input-wrap.invalid {
+  border-color: #F97316;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.14);
+}
 .tb-input-prefix,
 .tb-input-suffix {
   padding: 0 14px;
@@ -391,6 +395,13 @@
 .tb-input::placeholder {
   font-weight: 400;
   color: #CBD5E1;
+}
+
+.tb-field-error {
+  margin: 2px 0 0;
+  font-size: 0.83rem;
+  color: #C2410C;
+  font-weight: 600;
 }
 
 /* ── Quick chips ── */
@@ -1137,6 +1148,10 @@
   border-color: #3BE8A0;
   box-shadow: 0 0 0 3px rgba(59,232,160,0.12);
 }
+[data-theme='dark'] .tb-input-wrap.invalid {
+  border-color: #FB923C;
+  box-shadow: 0 0 0 3px rgba(251,146,60,0.2);
+}
 [data-theme='dark'] .tb-input-prefix {
   background: rgba(59,232,160,0.08);
   border-color: #30363D;
@@ -1167,6 +1182,9 @@
   background: rgba(220,38,38,0.12);
   border-color: rgba(220,38,38,0.3);
   color: #FCA5A5;
+}
+[data-theme='dark'] .tb-field-error {
+  color: #FDBA74;
 }
 
 [data-theme='dark'] .tb-selected-total-box {

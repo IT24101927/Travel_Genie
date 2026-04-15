@@ -5,6 +5,16 @@ import { Link, useNavigate } from 'react-router-dom'
 import { DAILY_SPLIT_DEFAULT, normalizeDailySplit, deriveAiFallbackSplit, validateStartToBudgetHandoff } from '../../utils/budgetPlanning'
 import './TripBudget.css'
 
+function isSameDailySplit(a, b) {
+  const left = normalizeDailySplit(a)
+  const right = normalizeDailySplit(b)
+  return (
+    left.food === right.food
+    && left.transport === right.transport
+    && left.activities_misc === right.activities_misc
+  )
+}
+
 function mapHotel(h) {
   return {
     _id:        String(h.hotel_id || h.place_id),
@@ -662,6 +672,8 @@ export default function TripBudget({ theme, toggleTheme }) {
       : null
 
   const isBudgetIncomplete = !totalBudget || !hotelBudget
+  const totalBudgetMissing = !totalBudget
+  const hotelBudgetMissing = !hotelBudget
   const isTripDaysInvalid = !tripDays || Number(tripDays) < minDays
   const isHotelOverTotal = !!hotelBudget && !!totalBudget && Number(hotelBudget) > Number(totalBudget)
   const canContinue = !isBudgetIncomplete && !isTripDaysInvalid && !isHotelOverTotal
@@ -743,13 +755,14 @@ export default function TripBudget({ theme, toggleTheme }) {
 
   useEffect(() => {
     if (dailySplitTouched) return
-    setDailySplit(aiSuggestedSplit)
-    if (isServerAiSplit) {
-      setSplitSource('ai-server')
-    } else {
-      setSplitSource('ai-fallback')
+    if (!isSameDailySplit(dailySplit, aiSuggestedSplit)) {
+      setDailySplit(aiSuggestedSplit)
     }
-  }, [aiDailyPlan, dailySplitTouched, isServerAiSplit, aiSuggestedSplit])
+    const nextSource = isServerAiSplit ? 'ai-server' : 'ai-fallback'
+    if (splitSource !== nextSource) {
+      setSplitSource(nextSource)
+    }
+  }, [aiDailyPlan, dailySplitTouched, isServerAiSplit, aiSuggestedSplit, dailySplit, splitSource])
 
   useEffect(() => {
     if (plannedTotal <= 0) return
@@ -891,7 +904,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                 </div>
               </div>
 
-              <div className="tb-input-wrap">
+              <div className={`tb-input-wrap${totalBudgetMissing ? ' invalid' : ''}`}>
                 <span className="tb-input-prefix">{sym}</span>
                 <input
                   className="tb-input"
@@ -902,9 +915,13 @@ export default function TripBudget({ theme, toggleTheme }) {
                   onChange={e => handleTotalInput(e.target.value)}
                   onFocus={() => setIsTotalFocused(true)}
                   onBlur={handleTotalBlur}
+                  aria-invalid={totalBudgetMissing}
                 />
                 <span className="tb-input-suffix">{currency}</span>
               </div>
+              {totalBudgetMissing && (
+                <p className="tb-field-error">Enter your total trip budget to continue.</p>
+              )}
 
               <div className="tb-quick-chips">
                 <span className="tb-chips-label">Quick pick:</span>
@@ -934,7 +951,7 @@ export default function TripBudget({ theme, toggleTheme }) {
                 </div>
               </div>
 
-              <div className="tb-input-wrap">
+              <div className={`tb-input-wrap${hotelBudgetMissing ? ' invalid' : ''}`}>
                 <span className="tb-input-prefix">{sym}</span>
                 <input
                   className="tb-input"
@@ -945,9 +962,13 @@ export default function TripBudget({ theme, toggleTheme }) {
                   onChange={e => handleHotelInput(e.target.value)}
                   onFocus={() => setIsHotelFocused(true)}
                   onBlur={handleHotelBlur}
+                  aria-invalid={hotelBudgetMissing}
                 />
                 <span className="tb-input-suffix">{currency}</span>
               </div>
+              {hotelBudgetMissing && (
+                <p className="tb-field-error">Enter your hotel budget to continue.</p>
+              )}
 
               <div className="tb-quick-chips">
                 <span className="tb-chips-label">Quick hotel:</span>
@@ -1632,11 +1653,9 @@ export default function TripBudget({ theme, toggleTheme }) {
             </svg>
           </button>
         </div>
-          {(isBudgetIncomplete || isTripDaysInvalid || isHotelOverTotal) && (
+          {(isTripDaysInvalid || isHotelOverTotal) && (
           <p className="tb-days-required" style={{ marginTop: '10px', textAlign: 'right' }}>
-            {isBudgetIncomplete
-              ? '⚠️ Please fill both Total trip budget and Hotel budget to continue.'
-              : isTripDaysInvalid
+            {isTripDaysInvalid
               ? `⚠️ Total trip days must be at least ${minDays} (your hotel nights).`
               : '⚠️ Hotel budget cannot be greater than total trip budget.'}
           </p>
