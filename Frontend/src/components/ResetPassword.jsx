@@ -81,8 +81,8 @@ function ResetPassword({ theme, toggleTheme }) {
   // Guard: must arrive here via forgot-password flow
   if (!email || !code) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '16px' }}>
-        <p>Invalid reset session. Please start over.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '16px', background: 'var(--background)', color: 'var(--text-primary)', padding: '24px' }}>
+        <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>Invalid reset session. Please start over.</p>
         <Link to="/forgot-password" className="lg-btn-primary" style={{ textDecoration: 'none', padding: '10px 24px', borderRadius: '8px' }}>Back to Forgot Password</Link>
       </div>
     )

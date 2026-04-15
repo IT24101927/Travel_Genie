@@ -298,8 +298,8 @@ function ReviewManagement() {
         </div>
       )}
       {error && (
-        <div style={{background:'#f44336',color:'#fff',padding:'10px 16px',borderRadius:6,marginBottom:12}}>
-          Error: {error} — <button onClick={loadReviews} style={{background:'none',border:'none',color:'#fff',textDecoration:'underline',cursor:'pointer'}}>Retry</button>
+        <div className="admin-error-banner">
+          Error: {error} - <button onClick={loadReviews}>Retry</button>
         </div>
       )}
 

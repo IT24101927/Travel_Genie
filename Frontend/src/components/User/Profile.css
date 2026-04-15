@@ -950,7 +950,7 @@
 .avatar-modal-header h3 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -1055,7 +1055,7 @@
   border: 2px solid var(--border);
   border-radius: 10px;
   background: var(--background);
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 0.9rem;
   outline: none;
   box-sizing: border-box;

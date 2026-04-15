@@ -14,9 +14,9 @@ class RootErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', background: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'Inter, Segoe UI, sans-serif', background: 'var(--background)', color: 'var(--text-primary)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2 style={{ color: '#dc2626' }}>Something went wrong</h2>
-          <pre style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '8px', textAlign: 'left', fontSize: '0.8rem', overflowX: 'auto', maxWidth: '600px', whiteSpace: 'pre-wrap' }}>
+          <pre style={{ background: 'var(--surface-alt)', color: 'var(--text-primary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', textAlign: 'left', fontSize: '0.8rem', overflowX: 'auto', maxWidth: '600px', whiteSpace: 'pre-wrap' }}>
             {this.state.error?.message}
           </pre>
           <button onClick={() => { localStorage.clear(); window.location.href = '/' }}
@@ -41,7 +41,7 @@ class AdminErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', background: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'Inter, Segoe UI, sans-serif', background: 'var(--background)', color: 'var(--text-primary)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2 style={{ color: '#dc2626' }}>Admin panel failed to load</h2>
           <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('currentUser'); window.location.href = '/login' }}
             style={{ marginTop: '1rem', padding: '0.5rem 1.5rem', background: '#0E7C5F', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
