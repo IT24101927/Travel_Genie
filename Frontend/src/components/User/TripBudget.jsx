@@ -151,6 +151,7 @@ export default function TripBudget({ theme, toggleTheme }) {
   const [budgetAi, setBudgetAi] = useState(null)
   const [budgetAiLoading, setBudgetAiLoading] = useState(false)
   const [budgetAiError, setBudgetAiError] = useState('')
+  const [budgetAiRetrySeq, setBudgetAiRetrySeq] = useState(0)
   const [dailySplit, setDailySplit] = useState(DAILY_SPLIT_DEFAULT)
   const [dailySplitTouched, setDailySplitTouched] = useState(false)
   const [splitSource, setSplitSource] = useState('default')
@@ -398,6 +399,7 @@ export default function TripBudget({ theme, toggleTheme }) {
 
   useEffect(() => {
     let active = true
+    let retryDelayId = null
     const districtId = district?.district_id
     const total = Number(totalBudget)
     const hotel = Number(hotelBudget)
@@ -412,7 +414,7 @@ export default function TripBudget({ theme, toggleTheme }) {
       return () => { active = false }
     }
 
-    const loadBudgetAi = async () => {
+    const loadBudgetAi = async (attempt = 0) => {
       setBudgetAiLoading(true)
       setBudgetAiError('')
 
@@ -438,9 +440,25 @@ export default function TripBudget({ theme, toggleTheme }) {
       if (selectedHotelIds) params.set('selected_hotel_ids', selectedHotelIds)
 
       try {
-        const res = await fetch(`${API_BASE}/budget/ai-recommend?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const timeoutMs = attempt === 0 ? 30000 : 20000
+        const controller = new AbortController()
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+        let res = null
+        try {
+          params.set('_retry', String(budgetAiRetrySeq))
+          params.set('_attempt', String(attempt))
+          params.set('_ts', String(Date.now()))
+
+          res = await fetch(`${API_BASE}/budget/ai-recommend?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+            cache: 'no-store',
+          })
+        } finally {
+          window.clearTimeout(timeoutId)
+        }
+
         const json = res.ok ? await res.json() : null
 
         if (!active) return
@@ -456,10 +474,23 @@ export default function TripBudget({ theme, toggleTheme }) {
         setBudgetAi(json)
         localStorage.setItem('tripBudgetAI', JSON.stringify(json))
         trackBudgetMetric('aiAvailable')
-      } catch {
+      } catch (error) {
         if (!active) return
+
+        const isTimeout = error?.name === 'AbortError'
+        const canRetry = attempt < 2
+        if (canRetry) {
+          retryDelayId = window.setTimeout(() => {
+            if (!active) return
+            loadBudgetAi(attempt + 1)
+          }, 1200 * (attempt + 1))
+          return
+        }
+
         setBudgetAi(null)
-        setBudgetAiError('Budget AI is temporarily unavailable.')
+        setBudgetAiError(isTimeout
+          ? 'Budget AI is taking too long right now. Please retry.'
+          : 'Budget AI is temporarily unavailable.')
         localStorage.removeItem('tripBudgetAI')
         trackBudgetMetric('aiUnavailable')
       } finally {
@@ -469,8 +500,18 @@ export default function TripBudget({ theme, toggleTheme }) {
 
     loadBudgetAi()
 
-    return () => { active = false }
-  }, [district, totalBudget, hotelBudget, tripDays, prefs, selectedHotelsList, currency])
+    return () => {
+      active = false
+      if (retryDelayId) window.clearTimeout(retryDelayId)
+    }
+  }, [district, totalBudget, hotelBudget, tripDays, prefs, selectedHotelsList, currency, budgetAiRetrySeq])
+
+  const retryBudgetAiPlan = () => {
+    if (budgetAiLoading) return
+    setBudgetAiLoading(true)
+    setBudgetAiError('')
+    setBudgetAiRetrySeq((value) => value + 1)
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -1402,6 +1443,7 @@ export default function TripBudget({ theme, toggleTheme }) {
               </div>
 
               {budgetAiLoading && <p className="tb-ai-loading">Generating AI daily plan...</p>}
+              {!budgetAiLoading && budgetAiError && <p className="tb-ai-error">{budgetAiError}</p>}
               {!budgetAiLoading && !plannedTotal && (
                 <p className="tb-ai-muted">Enter total budget and hotel budget to generate your daily plan.</p>
               )}
@@ -1466,6 +1508,16 @@ export default function TripBudget({ theme, toggleTheme }) {
                     >
                       Use balanced split (55 / 30 / 15)
                     </button>
+                    {budgetAiError && (
+                      <button
+                        type="button"
+                        className="tb-ai-action-btn"
+                        onClick={retryBudgetAiPlan}
+                        disabled={budgetAiLoading}
+                      >
+                        Retry AI plan
+                      </button>
+                    )}
                   </div>
 
                   <div className="tb-ai-adjust-grid">

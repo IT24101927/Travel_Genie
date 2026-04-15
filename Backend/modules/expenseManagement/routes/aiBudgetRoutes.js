@@ -14,6 +14,7 @@ const normalizeAiBaseUrl = (rawValue) => {
 const AI_BASE_URL = normalizeAiBaseUrl(process.env.AI_BASE_URL)
 const AI_HOST = process.env.AI_HOST || 'localhost'
 const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
+const BUDGET_AI_TIMEOUT_MS = parseInt(process.env.BUDGET_AI_TIMEOUT_MS || '60000', 10)
 
 const resolveAiTarget = (path, timeout) => {
   if (AI_BASE_URL) {
@@ -135,7 +136,7 @@ router.get('/ai-recommend', protect, (req, res) => {
   })
 
   const aiPath = `/budget/recommend?${query.toString()}`
-  const { client, options } = resolveAiTarget(aiPath, 60000)
+  const { client, options } = resolveAiTarget(aiPath, BUDGET_AI_TIMEOUT_MS)
 
   const proxyReq = client.get(
     options,
