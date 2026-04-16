@@ -347,7 +347,7 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
   const priceMax = rawMax !== null ? convertPrice(rawMax, displayCurrency) : null
   const dbId = hotel.place_id ?? hotel.place?.place_id ?? null
   const weatherInfo = weatherPresentation(hotel.weather_label)
-  const hasWeatherSignal = Boolean(hotel.weather_label) || hotel.temperature != null
+  const hasWeatherSignal = weatherCategory(hotel.weather_label) !== 'unknown' || hotel.temperature != null
 
   return (
     <div className={`hp-card-wrap${showReviews ? ' hp-card-wrap--open' : ''}${isSelected ? ' hp-card-wrap--selected' : ''}`}>
@@ -388,7 +388,7 @@ function HotelCard({ hotel, onSelect, onDeselect, isSelected, selectedNights, se
               ))}
               {hasWeatherSignal && (
                 <span className="hp-card-weather">
-                  {weatherInfo.icon} {weatherInfo.label}
+                  {weatherInfo.emoji} {weatherInfo.label}
                   {hotel.temperature != null ? ` · ${Math.round(Number(hotel.temperature))}°C` : ''}
                 </span>
               )}
@@ -1343,7 +1343,7 @@ export default function HotelPicker({ theme, toggleTheme }) {
                         <div className="hp-ai-card-body">
                           <h4 className="hp-ai-card-name">{hotel.name}</h4>
                           <span className="hp-ai-price">from {currencySymbol(priceCurrency)}{convertPrice(hotel.priceRange?.min || 0, priceCurrency).toLocaleString()}/night</span>
-                          {(hotel.weather_label || hotel.temperature != null) && (
+                          {(weatherCategory(hotel.weather_label) !== 'unknown' || hotel.temperature != null) && (
                             <span className="hp-ai-weather">
                               {weatherInfo.emoji} {weatherInfo.label}
                               {hotel.temperature != null ? ` · ${Math.round(Number(hotel.temperature))}°C` : ''}

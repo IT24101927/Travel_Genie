@@ -1088,10 +1088,10 @@ function DistrictExplore({ theme, toggleTheme }) {
                           {place.aiReason && (
                             <p className="de-ai-reason">🎯 {place.aiReason}</p>
                           )}
-                          {(place.aiWeather || place.temperature) && (
+                          {(weatherCategory(place.aiWeather) !== 'unknown' || place.temperature != null) && (
                             <span className="de-ai-weather">
                               {weatherInfo.emoji} {weatherInfo.label}
-                              {place.temperature ? ` · ${Math.round(place.temperature)}°C` : ''}
+                              {place.temperature != null ? ` · ${Math.round(place.temperature)}°C` : ''}
                             </span>
                           )}
                           {place.tags.length > 0 && (

@@ -18,7 +18,7 @@ const normalizeAiBaseUrl = (rawValue) => {
 const AI_BASE_URL = normalizeAiBaseUrl(process.env.AI_BASE_URL)
 const AI_HOST = process.env.AI_HOST || 'localhost'
 const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
-const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '20000', 10)
+const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '35000', 10)
 const PLACE_AI_CACHE_TTL_MS = parseInt(process.env.PLACE_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
 
@@ -119,11 +119,12 @@ const buildFallbackRecommendations = async ({ userId, districtId, topN, reason }
         lng: place.lng,
         final_score: finalScore,
         weather_adjusted_score: finalScore,
-        weather_label: reason === 'timeout' ? 'AI timeout fallback' : 'AI unavailable fallback',
+        weather_label: 'unknown',
         match_reason: matchedTags.length > 0
           ? `Matched ${matchedTags.length} of your interest tags`
           : 'Ranked by rating and review count',
         temperature: null,
+        fallback_reason: reason,
       }
     })
     .sort((a, b) => (b.weather_adjusted_score - a.weather_adjusted_score) || (b.rating - a.rating))
@@ -245,7 +246,7 @@ router.get('/ai-recommend', protect, (req, res) => {
         topN,
         reason,
       })
-      setCachedRecommendations(key, fallbackPayload)
+      // Do not cache fallback payloads; allow quick recovery on immediate retry/refresh.
       hasResponded = true
       return res.json({ success: true, ...fallbackPayload })
     } catch {

@@ -19,7 +19,7 @@ const normalizeAiBaseUrl = (rawValue) => {
 const AI_BASE_URL = normalizeAiBaseUrl(process.env.AI_BASE_URL)
 const AI_HOST = process.env.AI_HOST || 'localhost'
 const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
-const HOTEL_AI_TIMEOUT_MS = parseInt(process.env.HOTEL_AI_TIMEOUT_MS || '20000', 10)
+const HOTEL_AI_TIMEOUT_MS = parseInt(process.env.HOTEL_AI_TIMEOUT_MS || '35000', 10)
 const HOTEL_AI_CACHE_TTL_MS = parseInt(process.env.HOTEL_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
 
@@ -100,8 +100,9 @@ const buildFallbackRecommendations = async ({ userId, districtId, topN, hotelTyp
           Number(hotel.star_class || 0) >= 4 ? `${hotel.star_class}-star stay` : null,
           weatherMatch ? 'Weather fit' : null,
         ].filter(Boolean),
-        weather_label: reason === 'timeout' ? 'AI timeout fallback' : 'AI unavailable fallback',
+        weather_label: 'unknown',
         temperature: null,
+        fallback_reason: reason,
       }
     })
     .sort((a, b) => (Number(b.weather_adjusted_score || 0) - Number(a.weather_adjusted_score || 0)))
@@ -231,7 +232,7 @@ router.get('/ai-recommend', protect, (req, res) => {
         hotelType,
         reason,
       })
-      setCachedRecommendations(key, fallbackPayload)
+      // Do not cache fallback payloads; allow quick recovery on immediate retry/refresh.
       hasResponded = true
       return res.json({ success: true, ...fallbackPayload })
     } catch {
