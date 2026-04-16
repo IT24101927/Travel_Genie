@@ -243,7 +243,7 @@ def load_trip_context(engine, user_id, district_id):
             "updatedAt",
             "createdAt"
         FROM trip_itineraries
-        WHERE user_id = %(user_id)s AND district_id = %(district_id)s
+        WHERE user_id = :user_id AND district_id = :district_id
         ORDER BY "updatedAt" DESC, "createdAt" DESC
         LIMIT 1
     """
@@ -319,7 +319,7 @@ def load_user_weather_preference(engine, user_id):
     query = """
         SELECT preferred_weather
         FROM user_preferences
-        WHERE user_id = %(user_id)s
+        WHERE user_id = :user_id
         LIMIT 1
     """
     try:
@@ -537,45 +537,48 @@ def fetch_weather_for_district(hotels_df, district_id):
         f"?latitude={lat}&longitude={lng}&current=temperature_2m,weather_code"
     )
 
-    weather_timeout_seconds = float(os.environ.get("HOTEL_WEATHER_TIMEOUT_SECONDS", "8"))
+    weather_timeout_seconds = float(os.environ.get("HOTEL_WEATHER_TIMEOUT_SECONDS", "10"))
+    weather_retries = int(os.environ.get("HOTEL_WEATHER_RETRIES", "1"))
 
-    try:
-        response = requests.get(url, timeout=weather_timeout_seconds)
-        if response.status_code != 200:
-            raise ValueError(f"bad status {response.status_code}")
+    for attempt in range(weather_retries + 1):
+        try:
+            response = requests.get(url, timeout=weather_timeout_seconds)
+            if response.status_code != 200:
+                raise ValueError(f"bad status {response.status_code}")
 
-        current = response.json().get("current", {})
-        code = current.get("weather_code", np.nan)
-        temp = current.get("temperature_2m", np.nan)
+            current = response.json().get("current", {})
+            code = current.get("weather_code", np.nan)
+            temp = current.get("temperature_2m", np.nan)
 
-        if pd.isna(code):
-            label, score = "unknown", 1.0
-        elif code in [0, 1, 2, 3]:
-            label, score = "good", 1.0
-        elif code in [45, 48]:
-            label, score = "foggy", 0.8
-        elif 51 <= code <= 67:
-            label, score = "rainy", 0.5
-        elif 71 <= code <= 77:
-            label, score = "snow/ice", 0.4
-        elif code >= 80:
-            label, score = "storm/rain", 0.3
-        else:
-            label, score = "mixed", 0.7
+            if pd.isna(code):
+                label, score = "unknown", 1.0
+            elif code in [0, 1, 2, 3]:
+                label, score = "good", 1.0
+            elif code in [45, 48]:
+                label, score = "foggy", 0.8
+            elif 51 <= code <= 67:
+                label, score = "rainy", 0.5
+            elif 71 <= code <= 77:
+                label, score = "snow/ice", 0.4
+            elif code >= 80:
+                label, score = "storm/rain", 0.3
+            else:
+                label, score = "mixed", 0.7
 
-        return {
-            "weather_label": label,
-            "weather_ok_score": float(score),
-            "temperature": None if pd.isna(temp) else float(temp),
-            "weather_code": None if pd.isna(code) else int(code),
-        }
-    except Exception:
-        return {
-            "weather_label": "unknown",
-            "weather_ok_score": 1.0,
-            "temperature": None,
-            "weather_code": None,
-        }
+            return {
+                "weather_label": label,
+                "weather_ok_score": float(score),
+                "temperature": None if pd.isna(temp) else float(temp),
+                "weather_code": None if pd.isna(code) else int(code),
+            }
+        except Exception:
+            if attempt >= weather_retries:
+                return {
+                    "weather_label": "unknown",
+                    "weather_ok_score": 1.0,
+                    "temperature": None,
+                    "weather_code": None,
+                }
 
 
 def apply_weather(rec_df, weather, preferred_weather="any"):

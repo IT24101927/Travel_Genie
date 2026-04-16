@@ -479,7 +479,7 @@ def score_recommendations(candidate_scores, place_data, users, user_id, district
 
 def fetch_weather(place_data):
     """Fetch current weather for each district using Open-Meteo."""
-    weather_timeout = float(os.environ.get("PLACE_WEATHER_TIMEOUT_SECONDS", "6"))
+    weather_timeout = float(os.environ.get("PLACE_WEATHER_TIMEOUT_SECONDS", "10"))
     district_centers = (
         place_data.dropna(subset=["lat", "lng"])
         .groupby(["district_id", "district_name"], as_index=False)
@@ -661,6 +661,26 @@ def recommend_places_with_cache(
         weather_df = fetch_weather(place_data)
         cached["weather_df"] = weather_df
         cached["weather_fetched_at"] = now_utc
+
+    # Refresh only the requested district when cached weather is missing/unknown.
+    district_weather = weather_df[weather_df["district_id"] == district_id] if not weather_df.empty else pd.DataFrame()
+    district_needs_refresh = (
+        district_weather.empty
+        or district_weather["weather_label"].fillna("unknown").eq("unknown").all()
+    )
+    if district_needs_refresh:
+        district_place_data = place_data[place_data["district_id"] == district_id].copy()
+        district_weather_fresh = fetch_weather(district_place_data)
+        if not district_weather_fresh.empty:
+            if weather_df.empty:
+                weather_df = district_weather_fresh
+            else:
+                weather_df = pd.concat(
+                    [weather_df[weather_df["district_id"] != district_id], district_weather_fresh],
+                    ignore_index=True,
+                )
+            cached["weather_df"] = weather_df
+            cached["weather_fetched_at"] = now_utc
 
     candidate_scores = compute_similarity(user_vecs, place_vecs)
     recommendations  = score_recommendations(candidate_scores, place_data, users, user_id, district_id)
