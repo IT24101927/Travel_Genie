@@ -36,7 +36,13 @@ def get_engine():
     if "sslmode" not in url:
         connector = "&" if "?" in url else "?"
         url += f"{connector}sslmode=require"
-    return create_engine(url, connect_args={"sslmode": "require"})
+    return create_engine(
+        url,
+        connect_args={"sslmode": "require", "connect_timeout": 10},
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_reset_on_return="rollback",
+    )
 
 
 # ===== HELPER FUNCTIONS =====

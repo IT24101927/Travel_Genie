@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import DBAPIError, PendingRollbackError
 
 load_dotenv()
 
@@ -33,7 +34,51 @@ def get_engine():
         connector = "&" if "?" in url else "?"
         url += f"{connector}sslmode=require"
 
-    return create_engine(url, connect_args={"sslmode": "require"})
+    return create_engine(
+        url,
+        connect_args={"sslmode": "require", "connect_timeout": 10},
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_reset_on_return="rollback",
+    )
+
+
+def _is_transient_db_error(exc):
+    msg = str(exc).lower()
+    transient_markers = (
+        "can't reconnect until invalid transaction is rolled back",
+        "server closed the connection unexpectedly",
+        "connection reset",
+        "connection timed out",
+        "terminating connection",
+        "ssl connection has been closed unexpectedly",
+    )
+    return any(marker in msg for marker in transient_markers)
+
+
+def _read_sql_with_retry(engine, query, params=None, retries=1):
+    """Run read-only SQL safely with a fresh connection and transient retry."""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            with engine.connect() as conn:
+                return pd.read_sql_query(text(query), conn, params=params)
+        except (PendingRollbackError, DBAPIError, pd.errors.DatabaseError) as exc:
+            last_exc = exc
+            # Ensure this connection is cleanly reset before pool return.
+            try:
+                with engine.connect() as conn:
+                    conn.rollback()
+            except Exception:
+                pass
+
+            if attempt < retries and _is_transient_db_error(exc):
+                # Drop potentially stale pooled connections and retry once.
+                engine.dispose()
+                continue
+            raise
+
+    raise last_exc
 
 
 def clean_text(value):
@@ -146,7 +191,7 @@ def load_hotels(engine):
         LEFT JOIN districts d ON d.district_id = p.district_id
         WHERE p."isActive" = true
     """
-    hotels = pd.read_sql(query, engine)
+    hotels = _read_sql_with_retry(engine, query, retries=1)
 
     text_cols = [
         "hotel_name", "hotel_type", "place_name", "place_description", "address_text",
@@ -203,7 +248,12 @@ def load_trip_context(engine, user_id, district_id):
         LIMIT 1
     """
 
-    trips = pd.read_sql(query, engine, params={"user_id": user_id, "district_id": district_id})
+    trips = _read_sql_with_retry(
+        engine,
+        query,
+        params={"user_id": user_id, "district_id": district_id},
+        retries=1,
+    )
     if trips.empty:
         return None
 
@@ -273,7 +323,7 @@ def load_user_weather_preference(engine, user_id):
         LIMIT 1
     """
     try:
-        rows = pd.read_sql(query, engine, params={"user_id": user_id})
+        rows = _read_sql_with_retry(engine, query, params={"user_id": user_id}, retries=1)
         if rows.empty:
             return "any"
         return clean_text(rows.iloc[0].get("preferred_weather", "any")) or "any"
@@ -487,8 +537,10 @@ def fetch_weather_for_district(hotels_df, district_id):
         f"?latitude={lat}&longitude={lng}&current=temperature_2m,weather_code"
     )
 
+    weather_timeout_seconds = float(os.environ.get("HOTEL_WEATHER_TIMEOUT_SECONDS", "8"))
+
     try:
-        response = requests.get(url, timeout=20)
+        response = requests.get(url, timeout=weather_timeout_seconds)
         if response.status_code != 200:
             raise ValueError(f"bad status {response.status_code}")
 

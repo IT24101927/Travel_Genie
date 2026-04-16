@@ -26,7 +26,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 
 from Place_Recommendation_AI.place_recommendation import get_engine, recommend_places_with_cache, preload_data
-from Hotel_Recommendation_AI.hotel_recommendation import recommend_hotels
+from Hotel_Recommendation_AI.hotel_recommendation import recommend_hotels, load_hotels
 from Budget_Recommendation_AI.budget_recommendation import recommend_budget
 
 load_dotenv()
@@ -42,6 +42,12 @@ print("[Place AI] Loading data from DB … (this happens once at startup)")
 _engine       = get_engine()
 _place_cache  = preload_data(_engine)
 print("[Place AI] Data loaded and cached. Ready to serve requests.")
+try:
+    _ = load_hotels(_engine)
+    print("[Hotel AI] Hotel data warm-up completed.")
+except Exception as e:
+    # Keep service up; request-time retry/refresh handles transient DB issues.
+    print(f"[Hotel AI] Warm-up skipped due to startup error: {e}")
 print("[Hotel AI] Ready to serve requests.")
 print("[Budget AI] Ready to serve requests.")
 
