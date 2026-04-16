@@ -60,6 +60,8 @@ function isUsersPrimaryKeyConflict(error) {
 }
 
 async function syncUsersIdSequence() {
+  // Realign PostgreSQL sequence with current MAX(id) to recover from manual imports
+  // or stale sequence state after migrations.
   await sequelize.query(`
     SELECT setval(
       pg_get_serial_sequence('users', 'id'),
@@ -70,6 +72,8 @@ async function syncUsersIdSequence() {
 }
 
 async function deleteUserRelatedData(userId, transaction) {
+  // Remove dependent rows in a deterministic order before deleting the user.
+  // This keeps cleanup explicit instead of relying only on DB cascade behavior.
   await Notification.destroy({ where: { user_id: userId }, transaction });
   await Review.destroy({ where: { user_id: userId }, transaction });
   await Expense.destroy({ where: { user_id: userId }, transaction });
@@ -223,6 +227,8 @@ exports.register = async (req, res, next) => {
     try {
       user = await User.create(userPayload);
     } catch (createError) {
+      // Rare edge case: sequence drift can throw users_pkey conflicts even when
+      // email/NIC uniqueness checks passed. Repair sequence and retry once.
       if (!isUsersPrimaryKeyConflict(createError)) throw createError;
       await syncUsersIdSequence();
       user = await User.create(userPayload);

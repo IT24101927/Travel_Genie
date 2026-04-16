@@ -5,6 +5,7 @@ const User = require('../modules/userManagement/models/User');
 exports.protect = async (req, res, next) => {
   let token;
 
+  // Support standard Authorization: Bearer <token> header used by web/mobile clients.
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
@@ -20,7 +21,7 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    // Verify token
+    // Verify signature and expiry, then hydrate req.user for downstream authorization checks.
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findByPk(decoded.id);
     // password is excluded via User.prototype.toJSON()

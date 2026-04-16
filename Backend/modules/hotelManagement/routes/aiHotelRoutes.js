@@ -23,6 +23,7 @@ const HOTEL_AI_TIMEOUT_MS = parseInt(process.env.HOTEL_AI_TIMEOUT_MS || '35000',
 const HOTEL_AI_CACHE_TTL_MS = parseInt(process.env.HOTEL_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
 
+// In-memory cache avoids repeating expensive AI requests for same user/context.
 const hotelRecommendationCache = new Map()
 
 const cacheKeyFor = ({ userId, districtId, topN, hotelType }) => `${userId}:${districtId}:${topN}:${hotelType || 'all'}`
@@ -55,6 +56,8 @@ const matchesWeatherPreference = (preferredWeather, hotelType) => {
 }
 
 const buildFallbackRecommendations = async ({ userId, districtId, topN, hotelType, reason }) => {
+  // If AI is unavailable, build a deterministic ranking from hotel quality signals
+  // plus the user's weather preference.
   const pref = await UserPreference.findByPk(userId, {
     attributes: ['regional_prefs'],
     raw: true,
@@ -232,7 +235,7 @@ router.get('/ai-recommend', protect, (req, res) => {
         hotelType,
         reason,
       })
-      // Do not cache fallback payloads; allow quick recovery on immediate retry/refresh.
+      // Keep fallback responses uncached so refresh can quickly recover to live AI.
       hasResponded = true
       return res.json({ success: true, ...fallbackPayload })
     } catch {

@@ -177,6 +177,7 @@ const mapHotel = (h) => {
 }
 
 function mergeUniqueHotels(primary = [], secondary = []) {
+  // Preserve primary ordering while appending unseen fallback/source items.
   const seen = new Set()
   const merged = []
   ;[...primary, ...secondary].forEach((h) => {
@@ -311,7 +312,7 @@ const DISPLAY_CURRENCIES = [
 
 function convertPrice(amount, toCurrency) {
   if (amount === null || amount === undefined) return null
-  // All stored prices are in LKR
+  // All backend hotel prices are stored in LKR.
   const to = DISPLAY_CURRENCIES.find(c => c.code === toCurrency)?.rate ?? 1
   return Math.round(amount * to)
 }

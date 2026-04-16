@@ -11,7 +11,7 @@ exports.getUserPreferences = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    // Ensure a row exists (upsert-style)
+    // Ensure a stable preferences row exists for every authenticated user.
     let pref = await UserPreference.findByPk(userId);
     if (!pref) {
       pref = await UserPreference.create({ user_id: userId });
@@ -38,7 +38,8 @@ exports.getUserPreferences = async (req, res, next) => {
       attributes: ['tag_id', 'tag_name', 'tag_type'],
     });
     const interestNames = interests.map(t => t.tag_name);
-    // Also include interests from address JSONB (backward compat)
+    // Also include interests from address JSONB for backward compatibility
+    // with older profile writes.
     const allInterests = [...new Set([...interestNames, ...(addressData.interests || [])])];
 
     res.status(200).json(successResponse({
@@ -123,7 +124,8 @@ exports.updateUserPreferences = async (req, res, next) => {
       }
     }
 
-    // Also sync to address JSONB for backward compatibility
+    // Dual-write to address JSONB so legacy consumers keep working while the
+    // normalized user_preferences path is the source of truth.
     const user = await User.findByPk(userId);
     const addr = { ...(user.address || {}) };
     if (travelStyle !== undefined) addr.travelStyle = travelStyle;

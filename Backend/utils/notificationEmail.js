@@ -8,6 +8,7 @@ const EMAIL_SUBJECTS = {
   PRICE_CHANGE: 'TravelGenie Alert: New Notification',
 };
 
+// Email defaults to enabled unless a user explicitly turns it off.
 const isEmailEnabled = async (userId) => {
   const pref = await UserPreference.findByPk(userId, {
     attributes: ['notification_prefs'],
@@ -21,6 +22,7 @@ const createTransporter = () => {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
+  // Return null when SMTP is not configured so API flows continue without hard failure.
   if (!host || !user || !pass) return null;
 
   return nodemailer.createTransport({
@@ -52,6 +54,7 @@ const sendNotificationEmailIfEnabled = async ({ userId, type, message }) => {
       return false;
     }
 
+    // Notification emails are best-effort; missing SMTP should not block business logic.
     const transporter = createTransporter();
     if (!transporter) {
       console.log('[NotificationEmail] Skipped: SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS)');

@@ -49,7 +49,8 @@ exports.assignTagsToPlace = async (req, res, next) => {
     const place = await Place.findByPk(placeId);
     if (!place) return res.status(404).json(errorResponse('Place not found'));
 
-    // Remove existing tags then re-insert
+    // Treat payload as the full source of truth: replace existing tag links
+    // instead of incrementally merging.
     await PlaceTag.destroy({ where: { place_id: placeId } });
     if (tags && tags.length > 0) {
       const records = tags.map(t => ({ place_id: parseInt(placeId), tag_id: t.tag_id, weight: t.weight || 1.0 }));

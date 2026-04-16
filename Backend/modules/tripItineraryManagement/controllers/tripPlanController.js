@@ -52,6 +52,8 @@ const deriveTimelineStatus = ({ startDate, endDate, currentStatus }) => {
 
 const syncTripTimelineStatus = async (trip) => {
   if (!trip) return trip;
+  // Auto-derive lifecycle status from travel dates to keep dashboard state
+  // consistent even if clients don't send status updates.
   const nextStatus = deriveTimelineStatus({
     startDate: trip.start_date,
     endDate: trip.end_date,
@@ -67,7 +69,8 @@ const syncTripTimelineStatus = async (trip) => {
 const normalizeTripPayload = (body = {}, { partial = false } = {}) => {
   const payload = { ...body };
 
-  // JSON fields: only normalize when explicitly provided during partial update.
+  // For PATCH-style updates, only normalize keys that are present in the request
+  // to avoid unintentionally wiping persisted arrays/objects.
   if (!partial || Object.prototype.hasOwnProperty.call(body, 'selected_places')) {
     payload.selected_places = asJsonArray(body.selected_places);
   }

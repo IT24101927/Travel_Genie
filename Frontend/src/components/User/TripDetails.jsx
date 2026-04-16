@@ -131,6 +131,8 @@ export default function TripDetails({ theme, toggleTheme }) {
   const currentUserId = currentUser?.id != null ? String(currentUser.id) : ''
   const currentUserEmail = (currentUser?.email || '').toLowerCase()
   const isOwnedByCurrentUser = useCallback((trip) => {
+    // Accept either ownerId or ownerEmail because legacy local snapshots may
+    // only contain one identifier.
     const ownerId = trip?.ownerId != null ? String(trip.ownerId) : ''
     const ownerEmail = (trip?.ownerEmail || '').toLowerCase()
     if (!ownerId && !ownerEmail) return true
@@ -172,6 +174,7 @@ export default function TripDetails({ theme, toggleTheme }) {
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (mapCardRef.current && !mapCardRef.current.contains(e.target)) {
+        // Incrementing signal triggers TdMapFitBounds to restore district overview.
         setMapResetSignal(s => s + 1)
       }
     }

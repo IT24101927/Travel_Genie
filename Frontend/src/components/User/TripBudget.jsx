@@ -440,6 +440,7 @@ export default function TripBudget({ theme, toggleTheme }) {
       if (selectedHotelIds) params.set('selected_hotel_ids', selectedHotelIds)
 
       try {
+        // Budget AI can cold-start; keep first timeout longer, then retry faster.
         const timeoutMs = attempt === 0 ? 30000 : 20000
         const controller = new AbortController()
         const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -480,6 +481,7 @@ export default function TripBudget({ theme, toggleTheme }) {
         const isTimeout = error?.name === 'AbortError'
         const canRetry = attempt < 2
         if (canRetry) {
+          // Gentle backoff keeps UI responsive while giving AI time to recover.
           retryDelayId = window.setTimeout(() => {
             if (!active) return
             loadBudgetAi(attempt + 1)
@@ -747,6 +749,8 @@ export default function TripBudget({ theme, toggleTheme }) {
   const splitTotalPercent = normalizedSplit.food + normalizedSplit.transport + normalizedSplit.activities_misc
   const perDayNonHotelBudget = ruleDays > 0 ? (plannedRemaining / ruleDays) : 0
   const applyAiSplit = () => {
+    // Applying AI split resets manual mode and marks whether data came from
+    // server AI percentages or deterministic local fallback percentages.
     setDailySplit(aiSuggestedSplit)
     setDailySplitTouched(false)
     const source = isServerAiSplit ? 'ai-server' : 'ai-fallback'

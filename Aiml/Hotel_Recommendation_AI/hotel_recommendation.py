@@ -487,6 +487,7 @@ def score_hotels(hotels_df, trip_context):
         rec["place_rating"].fillna(0) / 5.0,
     )
 
+    # Weighted blend of itinerary proximity, budget fit, preference type, and quality.
     rec["final_score"] = (
         rec["proximity_score"] * 0.35
         + rec["budget_fit_score"] * 0.30
@@ -653,8 +654,8 @@ def recommend_hotels(user_id, district_id, top_n=12, engine=None):
 
     trip_context = load_trip_context(engine, user_id, district_id)
     if trip_context is None:
-        # Fallback mode: still return district recommendations even when the user
-        # has not saved a trip itinerary for this district yet.
+        # Fallback mode: still return district-level recommendations even when the
+        # user has not saved a trip itinerary for this district yet.
         trip_context = {
             "trip_id": None,
             "user_id": int(user_id),

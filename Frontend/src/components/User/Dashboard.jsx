@@ -388,6 +388,8 @@ export default function Dashboard({ theme, toggleTheme }) {
 
     /* ── purge orphaned localStorage expense keys for unknown trip IDs ── */
     const purgeOrphanedExpenses = (knownTripIds) => {
+      // Local expense caches are keyed by trip id; remove leftovers from deleted
+      // or inaccessible trips to avoid ghost totals in the dashboard.
       const validSet = new Set(knownTripIds.map(id => String(id)))
       validSet.add('standalone')
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -407,6 +409,8 @@ export default function Dashboard({ theme, toggleTheme }) {
         .then(r => r.ok ? r.json() : null)
         .then(json => {
           if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+            // Prefer server truth, but keep enriched local fields (images/UI-only metadata)
+            // when available for smooth rendering.
             const localByDbId = new Map(
               localTrips
                 .filter(t => t.dbTripId)

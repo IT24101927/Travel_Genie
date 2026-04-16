@@ -293,6 +293,8 @@ def _build_ai_daily_plan(
 
 
 def _load_latest_trip_context(engine, user_id, district_id):
+    # Pull latest saved itinerary context so recommendations still work when the
+    # request payload omits selected place/hotel IDs.
     query = """
         SELECT
             trip_id,
@@ -408,7 +410,8 @@ def recommend_budget(
     if not hotel_ids and context:
         hotel_ids = context.get("hotel_ids", [])
 
-    # Hotel nights are independent from full trip days.
+    # Hotel nights are independent from full trip days; preserve this distinction
+    # so budget splits remain correct for day trips or staggered checkouts.
     try:
         safe_hotel_nights = int(hotel_nights or 0)
     except (TypeError, ValueError):

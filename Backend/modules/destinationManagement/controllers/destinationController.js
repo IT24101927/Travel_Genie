@@ -70,7 +70,8 @@ async function getUserSignals(userId) {
   const addressInterests = Array.isArray(user.address?.interests) ? user.address.interests : [];
   const travelStyle = user.address?.travelStyle || '';
 
-  // Also include interests linked via user_interests -> tags when available.
+  // Merge interests from both legacy address JSON and normalized user_interests
+  // to maximize recommendation signal coverage.
   const linkedTagRows = await Tag.findAll({
     include: [{ model: User, as: 'interestedUsers', where: { id: userId }, attributes: [] }],
     attributes: ['tag_name'],
@@ -305,7 +306,7 @@ exports.getRecommendedDestinations = async (req, res, next) => {
 
     const limit = parseInt(req.query.limit) || 12;
 
-    // 1) Prefer tag-overlap scoring when tag data exists.
+    // 1) Preferred path: score by explicit tag overlap (highest precision).
     if (signals.interestKeys.size > 0) {
       const candidates = await Place.findAll({
         where: {
@@ -334,7 +335,7 @@ exports.getRecommendedDestinations = async (req, res, next) => {
       }
     }
 
-    // 2) Fallback to existing type-based recommendation.
+    // 2) Fallback path: use mapped category/type affinity and then popularity.
     if (signals.matchedTypes.length === 0) {
       const popularRows = await Place.findAll({
         where: { isActive: true, type: { [Op.ne]: null }, place_id: { [Op.notIn]: literal('(SELECT "place_id" FROM "hotels")') } },

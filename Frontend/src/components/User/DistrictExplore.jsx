@@ -470,6 +470,7 @@ function DistrictExplore({ theme, toggleTheme }) {
         setAiError(null)
       }
 
+      // First attempt allows longer cold-start window; retries use a shorter timeout.
       const timeoutMs = attempt === 0 ? 30000 : 20000
       activeController = new AbortController()
       timeoutId = window.setTimeout(() => activeController?.abort(), timeoutMs)
@@ -518,6 +519,7 @@ function DistrictExplore({ theme, toggleTheme }) {
         const canRetry = attempt < 2
 
         if (canRetry) {
+          // Progressive backoff avoids hammering AI service while it warms up.
           retryDelayId = window.setTimeout(() => {
             fetchAi(attempt + 1)
           }, 1200 * (attempt + 1))
@@ -604,7 +606,7 @@ function DistrictExplore({ theme, toggleTheme }) {
 
   const togglePlace = (place) => {
     const isSelected = selectedPlaces.find(p => p.id === place.id)
-    // Enrich with coordinates from regular places list if the AI place has none
+    // AI payload can omit coordinates; merge from district place list for map accuracy.
     const enriched = (!place.lat || !place.lng)
       ? { ...place, ...(places.find(p => p.id === place.id) ? { lat: places.find(p => p.id === place.id).lat, lng: places.find(p => p.id === place.id).lng } : {}) }
       : place

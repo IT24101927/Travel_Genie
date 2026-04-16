@@ -22,6 +22,7 @@ const PLACE_AI_TIMEOUT_MS = parseInt(process.env.PLACE_AI_TIMEOUT_MS || '35000',
 const PLACE_AI_CACHE_TTL_MS = parseInt(process.env.PLACE_AI_CACHE_TTL_MS || '300000', 10)
 const MAX_TOP_N = 100
 
+// In-memory cache avoids repeated AI round-trips for identical query params.
 const placeRecommendationCache = new Map()
 
 const cacheKeyFor = ({ userId, districtId, topN }) => `${userId}:${districtId}:${topN}`
@@ -73,6 +74,8 @@ const parseDurationHours = (duration) => {
 }
 
 const buildFallbackRecommendations = async ({ userId, districtId, topN, reason }) => {
+  // Fallback ranking uses user interest tags + place rating so UX stays usable
+  // even during AI cold starts or transient upstream failures.
   const interests = await UserInterest.findAll({
     where: { user_id: userId },
     attributes: ['tag_id'],
@@ -246,7 +249,7 @@ router.get('/ai-recommend', protect, (req, res) => {
         topN,
         reason,
       })
-      // Do not cache fallback payloads; allow quick recovery on immediate retry/refresh.
+      // Do not cache fallback payloads; immediate retries should still attempt live AI.
       hasResponded = true
       return res.json({ success: true, ...fallbackPayload })
     } catch {

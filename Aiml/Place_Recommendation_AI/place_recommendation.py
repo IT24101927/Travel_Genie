@@ -643,6 +643,7 @@ def recommend_places_with_cache(
     weather_df = cached.get("weather_df", pd.DataFrame())
     weather_fetched_at = cached.get("weather_fetched_at")
 
+    # Weather data is cached separately from feature vectors and refreshed by TTL.
     ttl_seconds = int(os.environ.get("PLACE_WEATHER_CACHE_TTL_SECONDS", "900"))
     now_utc = datetime.now(timezone.utc)
     should_refresh_weather = weather_df.empty
@@ -662,7 +663,8 @@ def recommend_places_with_cache(
         cached["weather_df"] = weather_df
         cached["weather_fetched_at"] = now_utc
 
-    # Refresh only the requested district when cached weather is missing/unknown.
+    # Fast-path refresh: only re-fetch the requested district if its weather entry
+    # is missing/unknown, avoiding a full-country refresh.
     district_weather = weather_df[weather_df["district_id"] == district_id] if not weather_df.empty else pd.DataFrame()
     district_needs_refresh = (
         district_weather.empty

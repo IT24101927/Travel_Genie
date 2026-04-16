@@ -6,6 +6,7 @@ const { successResponse, errorResponse } = require('../../../utils/helpers');
 // @route   GET /api/price-records/place/:placeId
 exports.getByPlace = async (req, res, next) => {
   try {
+    // Most recent prices first so client UIs can show latest price trend quickly.
     const records = await PriceRecord.findAll({
       where: { place_id: req.params.placeId },
       order: [['recorded_at', 'DESC']],
@@ -29,6 +30,7 @@ exports.create = async (req, res, next) => {
 // @route   GET /api/price-records
 exports.getAll = async (req, res, next) => {
   try {
+    // Keep response bounded to prevent oversized admin payloads.
     const records = await PriceRecord.findAll({
       order: [['recorded_at', 'DESC']],
       limit: parseInt(req.query.limit) || 100,

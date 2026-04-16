@@ -16,6 +16,7 @@ const AI_HOST = process.env.AI_HOST || 'localhost'
 const AI_PORT = parseInt(process.env.AI_SERVICE_PORT || process.env.AI_PORT || '5001', 10)
 const BUDGET_AI_TIMEOUT_MS = parseInt(process.env.BUDGET_AI_TIMEOUT_MS || '60000', 10)
 
+// Resolve target either from full AI base URL (deployment) or host/port (local dev).
 const resolveAiTarget = (path, timeout) => {
   if (AI_BASE_URL) {
     try {
@@ -120,6 +121,7 @@ router.get('/ai-recommend', protect, (req, res) => {
 
   aiMonitorCounters.totalRequests += 1
 
+  // Forward the full planner context so AI can build per-day split and category guidance.
   const query = new URLSearchParams({
     user_id: String(user_id),
     district_id: String(district_id),
@@ -182,6 +184,7 @@ router.get('/ai-recommend', protect, (req, res) => {
 
 router.post('/ai-monitor-event', protect, (req, res) => {
   const event = String(req.body?.event || '').trim()
+  // Events are intentionally whitelisted so clients cannot mutate arbitrary metrics.
   const supported = new Set([
     'fallback_cycle',
     'apply_server_ai_split',

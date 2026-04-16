@@ -149,13 +149,15 @@ function PlanTrip({ theme, toggleTheme }) {
       d.description.toLowerCase().includes(q) ||
       d.highlights.some(h => h.toLowerCase().includes(q)) ||
       d.bestFor.some(b => b.toLowerCase().includes(q))
+    // Both province and free-text conditions must pass.
     return matchProv && matchSearch
   })
 
   const handleSelect = (district) => {
     // district already has district_id + correct image from DB merge
     localStorage.setItem('selectedDistrict', JSON.stringify(district))
-    // Clear any stale edit state so this is treated as a new trip, not an update
+    // Clear stale planner/edit state so a fresh district selection never reuses
+    // previous trip data by accident.
     localStorage.removeItem('editingTripId')
     localStorage.removeItem('selectedHotel')
     localStorage.removeItem('selectedHotels')
