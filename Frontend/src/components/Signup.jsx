@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { API_BASE } from '../config/api'
 import './Signup.css'
@@ -159,7 +159,23 @@ function Signup({ theme, toggleTheme }) {
   const [otpError, setOtpError] = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
+  const [otpDeliveryMode, setOtpDeliveryMode] = useState('email')
+  const [resendCooldown, setResendCooldown] = useState(0)
   const inputRefs = useRef([])
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined
+    const timerId = window.setInterval(() => {
+      setResendCooldown((seconds) => (seconds > 0 ? seconds - 1 : 0))
+    }, 1000)
+    return () => window.clearInterval(timerId)
+  }, [resendCooldown])
+
+  const formatCooldown = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = String(seconds % 60).padStart(2, '0')
+    return `${mins}:${secs}`
+  }
 
   const strength = getStrength(formData.password)
 
@@ -290,6 +306,7 @@ function Signup({ theme, toggleTheme }) {
     // Navigate to OTP step immediately — send code in background
     setDigits(['', '', '', '', '', ''])
     setOtpError('')
+    setOtpDeliveryMode('email')
     setDirection('forward')
     setStep(2)
     setSendingCode(true)
@@ -301,6 +318,8 @@ function Signup({ theme, toggleTheme }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to send verification code')
+      setOtpDeliveryMode(data?.data?.delivery === 'terminal' ? 'terminal' : 'email')
+      setResendCooldown(60)
     } catch (err) {
       // Go back to step 1 and show error
       setDirection('back')
@@ -329,6 +348,26 @@ function Signup({ theme, toggleTheme }) {
       setDigits(pasted.split(''))
       inputRefs.current[5]?.focus()
       e.preventDefault()
+    }
+  }
+
+  const retryVerificationCode = async () => {
+    setOtpError('')
+    setSendingCode(true)
+    try {
+      const res = await fetch(`${API_BASE}/users/send-verification-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to resend verification code')
+      setOtpDeliveryMode(data?.data?.delivery === 'terminal' ? 'terminal' : 'email')
+      setResendCooldown(60)
+    } catch (err) {
+      setOtpError(err.message)
+    } finally {
+      setSendingCode(false)
     }
   }
 
@@ -540,7 +579,7 @@ function Signup({ theme, toggleTheme }) {
               {step === 1
                 ? <><span>Already have an account? </span><Link to="/login">Sign in</Link></>
                 : step === 2
-                ? <>We sent a 6-digit code to <strong>{formData.email}</strong>.<br /><span style={{ fontSize: '13px', color: 'var(--text-muted, #6b7280)' }}>{formData.email?.endsWith('@gmail.com') ? 'Check your inbox or spam folder.' : 'Check the server terminal for the code.'}</span></>
+                ? <>We sent a 6-digit code to <strong>{formData.email}</strong>.<br /><span style={{ fontSize: '13px', color: 'var(--text-muted, #6b7280)' }}>{otpDeliveryMode === 'terminal' ? 'Email delivery is unavailable right now. Check the server terminal for the code.' : 'Check your inbox or spam folder. If it does not arrive, use Retry.'}</span></>
                 : 'Help us personalise your travel experience.'}
             </p>
           </div>
@@ -777,6 +816,18 @@ function Signup({ theme, toggleTheme }) {
               {sendingCode && <p className="fp-error-text" style={{ color: 'var(--primary, #6366f1)', marginBottom: '8px' }}><span className="fp-spinner" style={{ marginRight: 6 }} />Sending code to {formData.email}…</p>}
 
               {otpError && <p className="fp-error-text" style={{ marginBottom: '8px' }}>{otpError}</p>}
+
+              <div className="fp-resend-wrap">
+                <button
+                  type="button"
+                  className="fp-resend-btn"
+                  onClick={retryVerificationCode}
+                  disabled={otpLoading || sendingCode || resendCooldown > 0}
+                  style={{ opacity: otpLoading || sendingCode || resendCooldown > 0 ? 0.6 : 1, pointerEvents: otpLoading || sendingCode || resendCooldown > 0 ? 'none' : 'auto' }}
+                >
+                  {resendCooldown > 0 ? `Retry in ${formatCooldown(resendCooldown)}` : 'Retry sending code'}
+                </button>
+              </div>
 
               <button type="submit" className={`sg-btn-primary ${(otpLoading || sendingCode) ? 'fp-btn-loading' : ''}`} disabled={otpLoading || sendingCode}>
                 {otpLoading ? <><span className="fp-spinner" /> Verifying…</> : sendingCode ? <><span className="fp-spinner" /> Sending Code…</> : <>Verify Email <IconArrowRight /></>}
