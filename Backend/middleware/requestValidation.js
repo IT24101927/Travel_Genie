@@ -108,10 +108,37 @@ function numberField(field, { integer = false, min, max, required = false } = {}
   };
 }
 
+// Validate a string body field for length and optionally require it.
+function stringField(field, { minLength, maxLength, required = false } = {}) {
+  return (req, res, next) => {
+    const raw = req.body?.[field];
+
+    if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+      if (required) return badRequest(res, `${field} is required`);
+      return next();
+    }
+
+    if (typeof raw !== 'string') {
+      return badRequest(res, `${field} must be a string`);
+    }
+
+    const value = raw.trim();
+    if (minLength !== undefined && value.length < minLength) {
+      return badRequest(res, `${field} must be at least ${minLength} characters`);
+    }
+    if (maxLength !== undefined && value.length > maxLength) {
+      return badRequest(res, `${field} must be at most ${maxLength} characters`);
+    }
+
+    next();
+  };
+}
+
 module.exports = {
   positiveIntParam,
   requireFields,
   requireAtLeastOneField,
   enumField,
   numberField,
+  stringField,
 };

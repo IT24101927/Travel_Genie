@@ -99,13 +99,14 @@ async function sendResetEmail(email, code) {
   console.log(`[ForgotPassword] Expires in 15 minutes`);
   console.log(`========================================\n`);
 
+  // Only send email to Gmail addresses
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (domain !== 'gmail.com') return;
+
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) {
-    console.log('[ForgotPassword] SMTP not configured. Code is available in server terminal only.');
-    return { delivered: false, delivery: 'terminal' };
-  }
+  if (!host || !user || !pass) return;
 
   const transporter = nodemailer.createTransport({
     host,
@@ -128,11 +129,8 @@ async function sendResetEmail(email, code) {
         </div>`,
     });
     console.log(`[ForgotPassword] Email sent to ${email}`);
-    return { delivered: true, delivery: 'email' };
   } catch (err) {
     console.log(`[ForgotPassword] Email delivery failed: ${err.message}`);
-    console.log('[ForgotPassword] Fallback active. Check server terminal for the code.');
-    return { delivered: false, delivery: 'terminal' };
   }
 }
 
@@ -145,13 +143,14 @@ async function sendVerificationEmail(email, code) {
   console.log(`[SignupVerify] Expires in 15 minutes`);
   console.log(`========================================\n`);
 
+  // Only send email to Gmail addresses
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (domain !== 'gmail.com') return;
+
   const host       = process.env.SMTP_HOST;
   const user_email = process.env.SMTP_USER;
   const user_pass  = process.env.SMTP_PASS;
-  if (!host || !user_email || !user_pass) {
-    console.log('[SignupVerify] SMTP not configured. Code is available in server terminal only.');
-    return { delivered: false, delivery: 'terminal' };
-  }
+  if (!host || !user_email || !user_pass) return;
 
   try {
     const transporter = nodemailer.createTransport({
@@ -175,11 +174,8 @@ async function sendVerificationEmail(email, code) {
       `,
     });
     console.log(`[SignupVerify] Email sent to ${email}`);
-    return { delivered: true, delivery: 'email' };
   } catch (err) {
     console.log(`[SignupVerify] Email delivery failed: ${err.message}`);
-    console.log('[SignupVerify] Fallback active. Check server terminal for the code.');
-    return { delivered: false, delivery: 'terminal' };
   }
 }
 
@@ -409,10 +405,9 @@ exports.forgotPassword = async (req, res, next) => {
     const codeHash = await bcrypt.hash(code, salt);
     resetCodes.set(normalizedEmail, { codeHash, expire });
 
-    const deliveryResult = await sendResetEmail(normalizedEmail, code);
-    const delivery = deliveryResult?.delivery === 'terminal' ? 'terminal' : 'email';
+    await sendResetEmail(normalizedEmail, code);
 
-    res.status(200).json(successResponse({ delivery }, 'If that email is registered, a reset code has been sent'));
+    res.status(200).json(successResponse(null, 'If that email is registered, a reset code has been sent'));
   } catch (error) { next(error); }
 };
 
@@ -500,14 +495,9 @@ exports.sendVerificationCode = async (req, res, next) => {
 
     signupCodes.set(normalizedEmail, { codeHash, expire });
 
-    const deliveryResult = await sendVerificationEmail(normalizedEmail, code);
-    const delivery = deliveryResult?.delivery === 'terminal' ? 'terminal' : 'email';
+    await sendVerificationEmail(normalizedEmail, code);
 
-    const message = delivery === 'terminal'
-      ? 'Verification code generated. Email delivery is unavailable right now, check the server terminal for the code.'
-      : 'Verification code sent';
-
-    res.status(200).json(successResponse({ delivery }, message));
+    res.status(200).json(successResponse(null, 'Verification code sent'));
   } catch (error) { next(error); }
 };
 

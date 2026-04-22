@@ -104,13 +104,23 @@ exports.getMyReviews = async (req, res, next) => {
 // Body: { place_id, rating, comment, title?, visit_date?, travel_type?, images? }
 exports.createReview = async (req, res, next) => {
   try {
+    const placeId = parseInt(req.body.place_id, 10);
+    if (!Number.isInteger(placeId) || placeId <= 0) {
+      return res.status(400).json(errorResponse('place_id must be a positive integer'));
+    }
+
+    const visitDate = req.body.visit_date || null;
+    if (visitDate && new Date(visitDate) > new Date()) {
+      return res.status(400).json(errorResponse('visit_date cannot be in the future'));
+    }
+
     const payload = {
       user_id: req.user.id,
-      place_id: parseInt(req.body.place_id, 10),
+      place_id: placeId,
       rating: parseInt(req.body.rating, 10),
       title: req.body.title?.trim() || null,
       comment: String(req.body.comment || '').trim(),
-      visit_date: req.body.visit_date || null,
+      visit_date: visitDate,
       travel_type: req.body.travel_type || null,
       images: Array.isArray(req.body.images) ? req.body.images : [],
       status: 'approved',
@@ -145,15 +155,28 @@ exports.updateReview = async (req, res, next) => {
     if (!review) return res.status(404).json(errorResponse('Review not found'));
     if (review.user_id !== req.user.id)
       return res.status(403).json(errorResponse('Not authorized'));
-    const payload = { ...req.body };
-    if (Object.prototype.hasOwnProperty.call(payload, 'travelType') && !Object.prototype.hasOwnProperty.call(payload, 'travel_type')) {
-      payload.travel_type = payload.travelType;
+
+    // Whitelist updatable fields to prevent mass assignment of sensitive columns
+    // (user_id, place_id, status, is_flagged, helpful, helpful_by, etc.)
+    const body = req.body;
+    const travelType = body.travel_type || body.travelType || undefined;
+    const visitDate  = body.visit_date  || body.visitDate  || undefined;
+
+    if (visitDate && new Date(visitDate) > new Date()) {
+      return res.status(400).json(errorResponse('visit_date cannot be in the future'));
     }
-    if (Object.prototype.hasOwnProperty.call(payload, 'visitDate') && !Object.prototype.hasOwnProperty.call(payload, 'visit_date')) {
-      payload.visit_date = payload.visitDate;
-    }
-    delete payload.travelType;
-    delete payload.visitDate;
+
+    const payload = {};
+    if (body.rating      !== undefined) payload.rating      = parseInt(body.rating, 10);
+    if (body.title       !== undefined) payload.title       = body.title?.trim() || null;
+    if (body.comment     !== undefined) payload.comment     = String(body.comment).trim();
+    if (travelType       !== undefined) payload.travel_type = travelType;
+    if (visitDate        !== undefined) payload.visit_date  = visitDate || null;
+    if (Array.isArray(body.images))     payload.images      = body.images;
+    if (body.wouldRecommend !== undefined) payload.wouldRecommend = body.wouldRecommend;
+    if (Array.isArray(body.pros))       payload.pros        = body.pros;
+    if (Array.isArray(body.cons))       payload.cons        = body.cons;
+
     await review.update(payload);
     const updated = await Review.findByPk(review.review_id, { include: reviewIncludes });
     res.status(200).json(successResponse(updated, 'Review updated successfully'));

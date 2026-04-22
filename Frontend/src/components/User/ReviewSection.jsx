@@ -234,6 +234,8 @@ function ReviewForm({ targetName, onSubmit, onCancel }) {
     if (!comment.trim()) { setError('Please write your review comment.'); return }
     if (comment.trim().length < 10) { setError('Review comment must be at least 10 characters.'); return }
     if (comment.trim().length > 2000) { setError('Review comment must be under 2000 characters.'); return }
+    if (title.trim().length > 100) { setError('Title must be 100 characters or fewer.'); return }
+    if (visitDate && new Date(visitDate) > new Date()) { setError('Visit date cannot be in the future.'); return }
     setError('')
     setSubmitting(true)
     const pros = prosInput.split(',').map(s => s.trim()).filter(Boolean)
@@ -596,6 +598,32 @@ export default function ReviewSection({ targetType, targetId, targetName, distri
   /* ── save edit ── */
   const handleSaveEdit = async () => {
     if (!editingReview) return
+
+    if (!editForm.rating || editForm.rating === 0) {
+      alert('Please select a star rating.')
+      return
+    }
+    if (!editForm.comment.trim()) {
+      alert('Please write your review comment.')
+      return
+    }
+    if (editForm.comment.trim().length < 10) {
+      alert('Review comment must be at least 10 characters.')
+      return
+    }
+    if (editForm.comment.trim().length > 2000) {
+      alert('Review comment must be under 2000 characters.')
+      return
+    }
+    if (editForm.title.trim().length > 100) {
+      alert('Title must be 100 characters or fewer.')
+      return
+    }
+    if (editForm.visitDate && new Date(editForm.visitDate) > new Date()) {
+      alert('Visit date cannot be in the future.')
+      return
+    }
+
     const rid   = editingReview.review_id || editingReview.id
     const token = getToken()
 
@@ -804,6 +832,7 @@ export default function ReviewSection({ targetType, targetId, targetName, distri
               value={editForm.title}
               onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
               placeholder="Title — short summary of your visit"
+              maxLength={100}
             />
             <textarea
               className="rs-eform-input rs-eform-textarea"
@@ -812,6 +841,9 @@ export default function ReviewSection({ targetType, targetId, targetName, distri
               onChange={e => setEditForm(f => ({ ...f, comment: e.target.value }))}
               placeholder="Share what you loved, what could be better, tips for others…"
             />
+            <span className="rs-char-count" style={{ color: editForm.comment.length > 1900 ? '#e53e3e' : undefined }}>
+              {editForm.comment.length} / 2000 characters
+            </span>
           </div>
 
           {/* Pros + Cons */}

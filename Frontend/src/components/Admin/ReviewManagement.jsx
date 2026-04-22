@@ -107,6 +107,7 @@ function ReviewManagement() {
   const handleResponseSubmit = async (e) => {
     e.preventDefault()
     if (!responseText.trim()) { showToast('⚠️ Response cannot be empty.', 'error'); return }
+    if (responseText.trim().length < 5) { showToast('⚠️ Response must be at least 5 characters.', 'error'); return }
     if (responseText.trim().length > 1000) { showToast('⚠️ Response must be under 1000 characters.', 'error'); return }
     setSaving(true)
     try {
@@ -143,7 +144,7 @@ function ReviewManagement() {
     }
   }
 
-  // Flag review (sets is_flagged=true — separate from status)
+  // Flag review — admin path sets status: rejected + is_flagged: true on backend
   const handleFlag = async (id) => {
     try {
       const res = await fetch(`${API}/reviews/${id}/flag`, {
@@ -152,7 +153,7 @@ function ReviewManagement() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Failed to flag review')
-      setReviews(reviews.map(r => r.id === id ? { ...r, isFlagged: true } : r))
+      setReviews(reviews.map(r => r.id === id ? { ...r, isFlagged: true, status: 'rejected' } : r))
       showToast('✅ Review flagged!')
     } catch (err) {
       showToast('⚠️ ' + err.message, 'error')
@@ -718,8 +719,12 @@ function ReviewManagement() {
                   value={responseText}
                   onChange={(e) => setResponseText(e.target.value)}
                   placeholder="Write your admin response..."
+                  maxLength={1000}
                   required
                 />
+                <small style={{ color: responseText.length > 950 ? '#e53e3e' : '#718096' }}>
+                  {responseText.length} / 1000 characters
+                </small>
               </div>
 
               <div className="modal-actions">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { API_BASE } from '../config/api'
 import { validateEmail } from '../utils/validation'
@@ -43,23 +43,7 @@ function ForgotPassword({ theme, toggleTheme }) {
   const [digits, setDigits]   = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
-  const [deliveryMode, setDeliveryMode] = useState('email')
-  const [resendCooldown, setResendCooldown] = useState(0)
   const inputRefs = useRef([])
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return undefined
-    const timerId = window.setInterval(() => {
-      setResendCooldown((seconds) => (seconds > 0 ? seconds - 1 : 0))
-    }, 1000)
-    return () => window.clearInterval(timerId)
-  }, [resendCooldown])
-
-  const formatCooldown = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = String(seconds % 60).padStart(2, '0')
-    return `${mins}:${secs}`
-  }
 
   /* ── Step 1: request code ── */
   const handleEmailSubmit = async (e) => {
@@ -76,34 +60,7 @@ function ForgotPassword({ theme, toggleTheme }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Request failed')
-      setDeliveryMode(data?.data?.delivery === 'terminal' ? 'terminal' : 'email')
-      setResendCooldown(60)
       setStep(2)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRetryCode = async () => {
-    const emailCheck = validateEmail(email)
-    if (!emailCheck.valid) { setError(emailCheck.message); return }
-
-    setError('')
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/users/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || 'Request failed')
-      setDeliveryMode(data?.data?.delivery === 'terminal' ? 'terminal' : 'email')
-      setResendCooldown(60)
-      setDigits(['', '', '', '', '', ''])
-      inputRefs.current[0]?.focus()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -280,12 +237,7 @@ function ForgotPassword({ theme, toggleTheme }) {
                 <h2>Enter Reset Code</h2>
                 <p>
                   We sent a 6-digit code to <strong>{email}</strong>.<br />
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #6b7280)' }}>
-                    {deliveryMode === 'terminal'
-                      ? 'Email delivery is unavailable right now. Check the server terminal for the code.'
-                      : "Check your spam folder if you don't see it."
-                    }
-                  </span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #6b7280)' }}>Check your spam folder if you don't see it — or look in the server terminal if email isn't configured.</span>
                 </p>
               </div>
 
@@ -311,18 +263,6 @@ function ForgotPassword({ theme, toggleTheme }) {
                 </div>
 
                 {error && <p className="fp-error-text" style={{ marginBottom: '8px' }}>{error}</p>}
-
-                <div className="fp-resend-wrap">
-                  <button
-                    type="button"
-                    className="fp-resend-btn"
-                    onClick={handleRetryCode}
-                    disabled={loading || resendCooldown > 0}
-                    style={{ opacity: loading || resendCooldown > 0 ? 0.6 : 1, pointerEvents: loading || resendCooldown > 0 ? 'none' : 'auto' }}
-                  >
-                    {resendCooldown > 0 ? `Retry in ${formatCooldown(resendCooldown)}` : 'Retry sending code'}
-                  </button>
-                </div>
 
                 <button type="submit" className={`lg-btn-primary ${loading ? 'fp-btn-loading' : ''}`} disabled={loading}>
                   {loading

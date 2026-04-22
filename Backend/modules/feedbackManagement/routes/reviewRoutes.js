@@ -23,6 +23,7 @@ const {
   requireAtLeastOneField,
   enumField,
   numberField,
+  stringField,
 } = require('../../../middleware/requestValidation');
 
 // Protected: current user's reviews
@@ -36,8 +37,25 @@ router.get('/place/:placeId',      positiveIntParam('placeId', 'placeId'), getRe
 router.get('/admin/all',           protect, authorize('admin'), getAllReviewsAdmin);
 
 // Protected routes
-router.post('/',                   protect, requireFields(['place_id', 'rating', 'comment']), numberField('rating', { required: true, integer: true, min: 1, max: 5 }), createReview);
-router.put('/:id',                 protect, positiveIntParam('id'), requireAtLeastOneField(['rating', 'title', 'comment', 'visit_date', 'travel_type', 'travelType', 'visitDate', 'images']), numberField('rating', { integer: true, min: 1, max: 5 }), updateReview);
+router.post('/',
+  protect,
+  requireFields(['place_id', 'rating', 'comment']),
+  numberField('rating', { required: true, integer: true, min: 1, max: 5 }),
+  stringField('comment', { required: true, minLength: 10, maxLength: 2000 }),
+  stringField('title', { maxLength: 100 }),
+  enumField('travel_type', ['solo', 'couple', 'family', 'friends', 'business']),
+  createReview
+);
+router.put('/:id',
+  protect,
+  positiveIntParam('id'),
+  requireAtLeastOneField(['rating', 'title', 'comment', 'visit_date', 'travel_type', 'travelType', 'visitDate', 'images']),
+  numberField('rating', { integer: true, min: 1, max: 5 }),
+  stringField('comment', { minLength: 10, maxLength: 2000 }),
+  stringField('title', { maxLength: 100 }),
+  enumField('travel_type', ['solo', 'couple', 'family', 'friends', 'business']),
+  updateReview
+);
 router.delete('/:id',              protect, positiveIntParam('id'), deleteReview);
 router.post('/:id/helpful',        protect, positiveIntParam('id'), markHelpful);
 router.post('/:id/flag',           protect, positiveIntParam('id'), flagReview);
@@ -45,7 +63,7 @@ router.post('/:id/unflag',         protect, positiveIntParam('id'), unflagReview
 router.put('/:id/unflag',          protect, positiveIntParam('id'), unflagReview);
 
 router.put('/:id/status',          protect, authorize('admin'), positiveIntParam('id'), enumField('status', ['pending', 'approved', 'rejected'], { required: true }), updateReviewStatus);
-router.post('/:id/response',       protect, authorize('admin'), positiveIntParam('id'), requireFields(['comment']), addResponse);
+router.post('/:id/response',       protect, authorize('admin'), positiveIntParam('id'), requireFields(['comment']), stringField('comment', { minLength: 5, maxLength: 1000 }), addResponse);
 
 // Public routes with params must remain at the end.
 router.get('/:id',                 positiveIntParam('id'), getReview);
