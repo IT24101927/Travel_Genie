@@ -542,6 +542,44 @@
 .et-cat-pill.active { color: #fff !important; }
 [data-theme='dark'] .et-cat-pill { background: rgba(14,124,95,.12); }
 
+/* ── Planned / Paid toggle ── */
+.et-type-toggle {
+  display: flex;
+  gap: .4rem;
+}
+.et-type-btn {
+  flex: 1;
+  border: 1.5px solid var(--et-border);
+  background: rgba(255,255,255,.7);
+  color: var(--et-muted);
+  border-radius: 8px;
+  padding: .45rem .8rem;
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.et-type-btn:hover:not(.active) { border-color: var(--et-green); color: var(--et-text); }
+.et-type-btn.active.planned { border-color: #f59e0b; background: #fef3c7; color: #92400e; }
+.et-type-btn.active.paid    { border-color: #0E7C5F; background: var(--et-green-lt); color: #0E7C5F; }
+[data-theme='dark'] .et-type-btn { background: rgba(255,255,255,.06); }
+[data-theme='dark'] .et-type-btn.active.planned { background: rgba(245,158,11,.18); color: #fbbf24; border-color: #f59e0b; }
+[data-theme='dark'] .et-type-btn.active.paid    { background: rgba(14,124,95,.18); color: #34d399; border-color: #0E7C5F; }
+.et-type-hint { font-size: .73rem; color: var(--et-muted); margin-top: .15rem; }
+
+/* ── Expense type badge on card ── */
+.et-exp-type-badge {
+  font-size: .66rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: .1rem .45rem;
+  white-space: nowrap;
+}
+.et-exp-type-badge.planned { background: #fef3c7; color: #92400e; }
+.et-exp-type-badge.paid    { background: var(--et-green-lt); color: var(--et-green); }
+[data-theme='dark'] .et-exp-type-badge.planned { background: rgba(245,158,11,.15); color: #fbbf24; }
+[data-theme='dark'] .et-exp-type-badge.paid    { background: rgba(14,124,95,.15); color: #34d399; }
+
 .et-error { color: var(--et-red); font-size: .85rem; margin: 0; }
 
 .et-form-actions { display: flex; justify-content: flex-end; gap: .75rem; }

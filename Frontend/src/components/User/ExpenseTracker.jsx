@@ -355,6 +355,7 @@ const normalizeApiExpense = (e) => {
     currency: e.currency || 'LKR',
     date: e.expense_date || e.date,
     paymentMethod: e.payment_method || e.paymentMethod || 'cash',
+    expenseType: e.expense_type || 'ACTUAL',
     notes: e.note || e.notes || '',
     trip_id: e.trip_id,
     tripId: e.trip_id || e.tripId,
@@ -365,7 +366,7 @@ const normalizeApiExpense = (e) => {
 const BLANK_FORM = {
   description: '', category: 'food', amount: '', currency: 'LKR',
   date: new Date().toISOString().slice(0, 10),
-  paymentMethod: 'cash', notes: '', tags: '',
+  paymentMethod: 'cash', expenseType: 'ACTUAL', notes: '', tags: '',
 }
 
 function ExpenseForm({ initial, tripId, tripOptions = [], onSave, onCancel }) {
@@ -429,6 +430,29 @@ function ExpenseForm({ initial, tripId, tripOptions = [], onSave, onCancel }) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="et-fg et-fg-full">
+          <label>Expense Status</label>
+          <div className="et-type-toggle">
+            <button
+              type="button"
+              className={`et-type-btn${form.expenseType === 'ESTIMATED' ? ' active planned' : ''}`}
+              onClick={() => set('expenseType', 'ESTIMATED')}
+            >
+              📋 Planned
+            </button>
+            <button
+              type="button"
+              className={`et-type-btn${form.expenseType === 'ACTUAL' ? ' active paid' : ''}`}
+              onClick={() => set('expenseType', 'ACTUAL')}
+            >
+              ✅ Paid
+            </button>
+          </div>
+          <span className="et-type-hint">
+            {form.expenseType === 'ESTIMATED' ? 'Mark as Paid once you have actually paid this expense.' : 'This expense has been paid.'}
+          </span>
         </div>
 
         <div className="et-fg">
@@ -823,7 +847,7 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
           currency: payload.currency || 'LKR',
           expense_date: payload.date,
           payment_method: payload.paymentMethod || 'cash',
-          expense_type: 'ACTUAL',
+          expense_type: payload.expenseType || 'ACTUAL',
           trip_id: targetTripId !== 'standalone' ? targetTripId : undefined,
           category_id: categoryId,
         }
@@ -1617,6 +1641,9 @@ export default function ExpenseTracker({ theme, toggleTheme }) {
                           <span className="et-expense-desc">{e.description}</span>
                           <div className="et-expense-meta">
                             <span className="et-expense-date">{dateFmt(e.date || e.createdAt)}</span>
+                            <span className={`et-exp-type-badge ${e.expenseType === 'ESTIMATED' ? 'planned' : 'paid'}`}>
+                              {e.expenseType === 'ESTIMATED' ? '📋 Planned' : '✅ Paid'}
+                            </span>
                             <span className="et-meta-dot">·</span>
                             <span className="et-expense-pm">{e.paymentMethod?.replace('-', ' ')}</span>
                             {expTripName && (
