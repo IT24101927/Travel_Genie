@@ -8,6 +8,7 @@ import os
 import re
 import json
 import ast
+import threading
 
 from datetime import datetime, timezone
 import numpy as np
@@ -349,6 +350,12 @@ def compute_similarity(user_vectors, place_vectors):
     place_tag_cols = [c for c in place_vectors.columns if c.startswith("tag_")]
     shared_cols = sorted(set(user_tag_cols) & set(place_tag_cols))
 
+    # Pre-extract arrays once; avoids O(n) .iloc[j] inside the inner loop.
+    place_ids    = place_vectors["place_id"].to_numpy()
+    district_ids = place_vectors["district_id"].to_numpy()
+    place_names  = place_vectors["place_name"].to_numpy()
+    n_places     = len(place_vectors)
+
     results = []
     if shared_cols:
         sim_matrix = cosine_similarity(
@@ -356,29 +363,49 @@ def compute_similarity(user_vectors, place_vectors):
             place_vectors[shared_cols].values,
         )
         for i, uid in enumerate(user_vectors["user_id"]):
-            for j in range(len(place_vectors)):
-                pv = place_vectors.iloc[j]
+            row_sim = sim_matrix[i]
+            for j in range(n_places):
                 results.append({
-                    "user_id": int(uid),
-                    "place_id": int(pv["place_id"]),
-                    "district_id": int(pv["district_id"]),
-                    "place_name": pv["place_name"],
-                    "similarity_score": float(sim_matrix[i, j]),
+                    "user_id":          int(uid),
+                    "place_id":         int(place_ids[j]),
+                    "district_id":      int(district_ids[j]),
+                    "place_name":       place_names[j],
+                    "similarity_score": float(row_sim[j]),
                 })
     else:
         # No shared tags – zero similarity for all pairs
         for uid in user_vectors["user_id"]:
-            for j in range(len(place_vectors)):
-                pv = place_vectors.iloc[j]
+            for j in range(n_places):
                 results.append({
-                    "user_id": int(uid),
-                    "place_id": int(pv["place_id"]),
-                    "district_id": int(pv["district_id"]),
-                    "place_name": pv["place_name"],
+                    "user_id":          int(uid),
+                    "place_id":         int(place_ids[j]),
+                    "district_id":      int(district_ids[j]),
+                    "place_name":       place_names[j],
                     "similarity_score": 0.0,
                 })
 
     return pd.DataFrame(results)
+
+
+# ===== QUALITY FALLBACK (no user profile) =====
+
+def _quality_fallback(place_data, district_id):
+    """
+    Return a scored DataFrame for a district when the user has no profile.
+    Uses rating/review_count only — similarity and style scores are 0.
+    """
+    df = place_data[place_data["district_id"] == district_id].copy()
+    df["similarity_score"]    = 0.0
+    df["duration_fit_score"]  = 1.0
+    df["quality_score"]       = np.where(
+        df["rating"] >= 4.0, 1.0,
+        np.where(df["rating"] >= 3.0, 0.7, 0.4),
+    )
+    df["style_bonus"]             = 0.0
+    df["final_score"]             = df["quality_score"]
+    df["weather_adjusted_score"]  = df["quality_score"]
+    df["match_reason"]            = "ranked by rating"
+    return df.sort_values("final_score", ascending=False)
 
 
 # ===== SCORING =====
@@ -479,7 +506,7 @@ def score_recommendations(candidate_scores, place_data, users, user_id, district
 
 def fetch_weather(place_data):
     """Fetch current weather for each district using Open-Meteo."""
-    weather_timeout = float(os.environ.get("PLACE_WEATHER_TIMEOUT_SECONDS", "10"))
+    weather_timeout = float(os.environ.get("PLACE_WEATHER_TIMEOUT_SECONDS", "4.0"))
     district_centers = (
         place_data.dropna(subset=["lat", "lng"])
         .groupby(["district_id", "district_name"], as_index=False)
@@ -529,7 +556,8 @@ def fetch_weather(place_data):
                     "weather_ok_score": ok,
                 })
         except Exception as e:
-            print(f"[weather] Failed for {row['district_name']}: {e}")
+            err_type = type(e).__name__
+            print(f"[weather] {row['district_name']}: {err_type}")
 
     return pd.DataFrame(rows)
 
@@ -641,51 +669,69 @@ def recommend_places_with_cache(
     place_data = cached["place_data"]
     users      = cached["users"]
     weather_df = cached.get("weather_df", pd.DataFrame())
-    weather_fetched_at = cached.get("weather_fetched_at")
+    # weather_attempted_at tracks the last fetch attempt regardless of success,
+    # so a failed (empty) result still respects the TTL and doesn't spam errors.
+    weather_attempted_at = cached.get("weather_attempted_at") or cached.get("weather_fetched_at")
 
-    # Weather data is cached separately from feature vectors and refreshed by TTL.
     ttl_seconds = int(os.environ.get("PLACE_WEATHER_CACHE_TTL_SECONDS", "900"))
     now_utc = datetime.now(timezone.utc)
-    should_refresh_weather = weather_df.empty
 
-    if weather_fetched_at is not None:
+    should_refresh_weather = True
+    if weather_attempted_at is not None:
         try:
-            age = (now_utc - weather_fetched_at).total_seconds()
-            if age > ttl_seconds:
-                should_refresh_weather = True
+            age = (now_utc - weather_attempted_at).total_seconds()
+            if age <= ttl_seconds:
+                should_refresh_weather = False
         except Exception:
-            should_refresh_weather = True
-    else:
-        should_refresh_weather = True
+            pass
 
     if should_refresh_weather:
-        weather_df = fetch_weather(place_data)
-        cached["weather_df"] = weather_df
-        cached["weather_fetched_at"] = now_utc
+        # Mark attempted immediately so concurrent requests don't also trigger a refresh.
+        cached["weather_attempted_at"] = now_utc
 
-    # Fast-path refresh: only re-fetch the requested district if its weather entry
-    # is missing/unknown, avoiding a full-country refresh.
+        def _refresh_all():
+            fresh = fetch_weather(place_data)
+            cached["weather_df"] = fresh
+            cached["weather_fetched_at"] = datetime.now(timezone.utc)
+
+        threading.Thread(target=_refresh_all, daemon=True).start()
+        # Don't wait — use whatever weather_df is already cached (may be empty on first call).
+
+    # Per-district refresh: only when the full refresh didn't just run, and this
+    # district's entry is missing/unknown — avoids an immediate double-fetch on failure.
     district_weather = weather_df[weather_df["district_id"] == district_id] if not weather_df.empty else pd.DataFrame()
     district_needs_refresh = (
-        district_weather.empty
-        or district_weather["weather_label"].fillna("unknown").eq("unknown").all()
+        not should_refresh_weather
+        and (
+            district_weather.empty
+            or district_weather["weather_label"].fillna("unknown").eq("unknown").all()
+        )
     )
     if district_needs_refresh:
         district_place_data = place_data[place_data["district_id"] == district_id].copy()
-        district_weather_fresh = fetch_weather(district_place_data)
-        if not district_weather_fresh.empty:
-            if weather_df.empty:
-                weather_df = district_weather_fresh
-            else:
-                weather_df = pd.concat(
-                    [weather_df[weather_df["district_id"] != district_id], district_weather_fresh],
-                    ignore_index=True,
-                )
-            cached["weather_df"] = weather_df
-            cached["weather_fetched_at"] = now_utc
 
-    candidate_scores = compute_similarity(user_vecs, place_vecs)
-    recommendations  = score_recommendations(candidate_scores, place_data, users, user_id, district_id)
+        def _refresh_district():
+            fresh = fetch_weather(district_place_data)
+            if not fresh.empty:
+                current = cached.get("weather_df", pd.DataFrame())
+                updated = pd.concat(
+                    [current[current["district_id"] != district_id], fresh],
+                    ignore_index=True,
+                ) if not current.empty else fresh
+                cached["weather_df"] = updated
+                cached["weather_fetched_at"] = datetime.now(timezone.utc)
+
+        threading.Thread(target=_refresh_district, daemon=True).start()
+
+    # Filter to just the requesting user — computing all N users × M places is wasteful
+    # since score_recommendations only uses this one user's scores anyway.
+    # Users with no preferences/interests won't be in user_vecs; serve quality-based picks.
+    single_user_vec = user_vecs[user_vecs["user_id"] == user_id]
+    if single_user_vec.empty or users[users["user_id"] == user_id].empty:
+        recommendations = _quality_fallback(place_data, district_id)
+    else:
+        candidate_scores = compute_similarity(single_user_vec, place_vecs)
+        recommendations  = score_recommendations(candidate_scores, place_data, users, user_id, district_id)
 
     user_pref_weather = "any"
     current_user = users[users["user_id"] == user_id]
@@ -725,14 +771,17 @@ def preload_data(engine=None) -> dict:
     place_data = build_place_data(places, place_tags, tags, districts)
     user_vecs  = build_user_vectors(users)
     place_vecs = build_place_vectors(place_data)
-    weather_df = fetch_weather(place_data)
+    
+    # Defer weather fetching to the first request to avoid slow startup.
+    # Open-Meteo can time out; fetching 25 districts × 2 s = up to 50 s.
     return {
-        "users":      users,
-        "place_data": place_data,
-        "user_vecs":  user_vecs,
-        "place_vecs": place_vecs,
-        "weather_df": weather_df,
-        "weather_fetched_at": datetime.now(timezone.utc),
+        "users":               users,
+        "place_data":          place_data,
+        "user_vecs":           user_vecs,
+        "place_vecs":          place_vecs,
+        "weather_df":          pd.DataFrame(),
+        "weather_fetched_at":  None,
+        "weather_attempted_at": None,
     }
 
 
@@ -770,13 +819,17 @@ def recommend_places(
     user_vecs = build_user_vectors(users)
     place_vecs = build_place_vectors(place_data)
 
-    # 4. Cosine similarity
-    candidate_scores = compute_similarity(user_vecs, place_vecs)
-
-    # 5. Scoring
-    recommendations = score_recommendations(
-        candidate_scores, place_data, users, user_id, district_id
-    )
+    # 4. Cosine similarity (single-user filter avoids N_users × N_places loop)
+    # Users with no preferences/interests won't be in user_vecs; serve quality-based picks.
+    single_user_vec = user_vecs[user_vecs["user_id"] == user_id]
+    if single_user_vec.empty or users[users["user_id"] == user_id].empty:
+        recommendations = _quality_fallback(place_data, district_id)
+    else:
+        candidate_scores = compute_similarity(single_user_vec, place_vecs)
+        # 5. Scoring
+        recommendations = score_recommendations(
+            candidate_scores, place_data, users, user_id, district_id
+        )
 
     # 6. Weather enrichment
     weather_df = fetch_weather(place_data)
